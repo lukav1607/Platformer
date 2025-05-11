@@ -21,7 +21,7 @@ public:
 	int run();
 
 private:
-	const std::string PROJECT_NAME = "LVProjectTemplate";
+	const std::string PROJECT_NAME = "Platformer";
 
 	void processInput();
 	void update(float fixedTimeStep);

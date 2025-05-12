@@ -28,4 +28,6 @@ private:
 
 	sf::RenderWindow window;
 	StateManager stateManager;
+
+	bool isOutOfFocus;
 };

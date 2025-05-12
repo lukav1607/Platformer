@@ -33,6 +33,14 @@ float Utility::randomPitch(float variationPercent, float basePitch)
 	return basePitch + randomFactor * 2.0f * variationPercent;
 }
 
+sf::Vector2f Utility::normalize(sf::Vector2f vector)
+{
+	float length = std::hypotf(vector.x, vector.y);
+	if (length == 0.f)
+		return { 0.f, 0.f };
+	return vector / length;
+}
+
 sf::Vector2i Utility::worldToTileCoords(sf::Vector2f worldPos)
 {
 	return 

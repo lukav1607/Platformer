@@ -21,6 +21,9 @@ namespace Utility
 	// Example use: variationPercent 0.15f == 15% variation
 	float randomPitch(float variationPercent, float basePitch = 1.f);
 
+	// Normalizes a vector to a unit length.
+	sf::Vector2f normalize(sf::Vector2f vector);
+
 	// Converts world pixel position to tile coordinates.
 	sf::Vector2i worldToTileCoords(sf::Vector2f worldPos);
 

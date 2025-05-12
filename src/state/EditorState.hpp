@@ -32,6 +32,18 @@ public:
 
 private:
 	TileMap& map; // Reference to the tile map being edited
+	std::vector<Tile::Type> palette;
+	unsigned selectedTileIndex;
+
+	enum class Mode
+	{
+		NONE,
+		TILES,
+		OBJECTS,
+		ENEMIES,
+		ITEMS
+	};
+	Mode mode;
 
 	struct Camera
 	{
@@ -40,6 +52,10 @@ private:
 		static constexpr float MOVE_SPEED = 500.f;
 		sf::Vector2f direction;
 
+		static constexpr float PAN_SPEED = 1500.f;
+		sf::Vector2f anchorPoint;
+		bool isPanning = false;
+
 		static constexpr float ZOOM_SPEED = 5.f;
 		static constexpr float ZOOM_MIN = 0.5f;
 		static constexpr float ZOOM_MAX = 4.f;
@@ -47,5 +63,6 @@ private:
 	};
 	static Camera camera;
 
-	float mouseWheelDelta = 0.f;
+	float mouseWheelDelta;
+	sf::Vector2f mouseWorldPosition;
 };

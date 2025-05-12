@@ -29,9 +29,18 @@ void TileMap::rebuildVisuals()
 
             // Color by tile type
             switch (tile.type) {
+            case Tile::Type::BACKGROUND:
+				rect.setFillColor(sf::Color::Yellow);
+				break;
             case Tile::Type::SOLID:
-                rect.setFillColor(sf::Color::Blue);
+                rect.setFillColor(sf::Color::Green);
                 break;
+			case Tile::Type::WATER:
+				rect.setFillColor(sf::Color::Blue);
+				break;
+			case Tile::Type::DOOR:
+				rect.setFillColor(sf::Color::Magenta);
+				break;
             default:
                 rect.setFillColor(sf::Color::Transparent);
                 break;

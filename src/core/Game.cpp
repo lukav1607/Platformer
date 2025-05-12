@@ -11,7 +11,8 @@
 #include "Game.hpp"
 #include "../state/PlayState.hpp"
 
-Game::Game()
+Game::Game() :
+	isOutOfFocus(false)
 {
 	sf::ContextSettings settings;
 	settings.antiAliasingLevel = 8;
@@ -54,9 +55,20 @@ void Game::processInput()
 		if (event->is<sf::Event::Closed>())
 			window.close();
 
+		if (event->is<sf::Event::FocusLost>())
+			isOutOfFocus = true;
+
+		if (event->is<sf::Event::FocusGained>())
+			isOutOfFocus = false;
+
 		events.push_back(*event);
 	}
 
+	// Ignore input if the window is out of focus
+	if (isOutOfFocus)
+		return;
+
+	// Process input for the current (topmost) state
 	stateManager.processInput(window, events);
 }
 

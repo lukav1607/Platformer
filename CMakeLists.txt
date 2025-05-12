@@ -17,7 +17,12 @@ add_executable(
     "src/core/main.cpp"
     "src/core/Utility.cpp"
     "src/core/Game.cpp"
-    "src/audio/SoundManager.cpp")
+    "src/audio/SoundManager.cpp"
+    "src/world/TileMap.cpp"
+    "src/world/Tile.cpp"
+    "src/state/StateManager.cpp"
+    "src/state/PlayState.cpp"
+    "src/state/EditorState.cpp")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 # Don't link SFML::Main on non-Windows platforms

@@ -1,7 +1,7 @@
 // ================================================================================================
 // File: Game.cpp
 // Author: Luka Vukorepa (https://github.com/lukav1607)
-// Created: ...
+// Created: May 11, 2025
 // ================================================================================================
 // License: MIT License
 // Copyright (c) 2025 Luka Vukorepa
@@ -9,13 +9,16 @@
 
 #include <SFML/Graphics.hpp>
 #include "Game.hpp"
+#include "../state/PlayState.hpp"
 
 Game::Game()
 {
 	sf::ContextSettings settings;
 	settings.antiAliasingLevel = 8;
-	window.create(sf::VideoMode(sf::Vector2u(800, 600)), PROJECT_NAME, sf::Style::Close, sf::State::Windowed, settings);
+	window.create(sf::VideoMode(sf::Vector2u(1200, 800)), PROJECT_NAME, sf::Style::Default, sf::State::Windowed, settings);
 	window.setVerticalSyncEnabled(true);
+
+	stateManager.push(std::make_unique<PlayState>(stateManager));
 }
 
 int Game::run()
@@ -45,23 +48,29 @@ int Game::run()
 void Game::processInput()
 {
 	// Handle window events regardless of current game state
+	std::vector<sf::Event> events;
 	while (const std::optional event = window.pollEvent())
+	{
 		if (event->is<sf::Event::Closed>())
 			window.close();
 
-	// Input code here
+		events.push_back(*event);
+	}
+
+	stateManager.processInput(window, events);
 }
 
 void Game::update(float fixedTimeStep)
 {
-	// Update code here
+	stateManager.update(fixedTimeStep);
 }
 
 void Game::render(float interpolationFactor)
 {
 	window.clear();
 
-	// Render code here
+	stateManager.top()->applyView(window);
+	stateManager.render(window, interpolationFactor);
 
 	window.display();
 }

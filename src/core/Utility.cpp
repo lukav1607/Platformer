@@ -1,7 +1,7 @@
 // ================================================================================================
 // File: Utility.cpp
 // Author: Luka Vukorepa (https://github.com/lukav1607)
-// Created: ...
+// Created: May 11, 2025
 // ================================================================================================
 // License: MIT License
 // Copyright (c) 2025 Luka Vukorepa
@@ -10,6 +10,7 @@
 #include <map>
 #include <random>
 #include "Utility.hpp"
+#include "../world/TileMap.hpp"
 
 bool Utility::isKeyReleased(sf::Keyboard::Key key)
 {
@@ -30,4 +31,22 @@ float Utility::randomPitch(float variationPercent, float basePitch)
 
 	float randomFactor = dist(gen);
 	return basePitch + randomFactor * 2.0f * variationPercent;
+}
+
+sf::Vector2i Utility::worldToTileCoords(sf::Vector2f worldPos)
+{
+	return 
+	{
+		   static_cast<int>(worldPos.x) / TileMap::TILE_SIZE,
+		   static_cast<int>(worldPos.y) / TileMap::TILE_SIZE
+	};
+}
+
+sf::Vector2f Utility::tileToWorldCoords(sf::Vector2i tileCoords)
+{
+	return
+	{
+		static_cast<float>(tileCoords.x) * TileMap::TILE_SIZE,
+		static_cast<float>(tileCoords.y) * TileMap::TILE_SIZE
+	};
 }

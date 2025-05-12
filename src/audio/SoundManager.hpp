@@ -1,7 +1,7 @@
 // ================================================================================================
 // File: SoundManager.hpp
 // Author: Luka Vukorepa (https://github.com/lukav1607)
-// Created: ...
+// Created: May 11, 2025
 // Description: Defines the SoundManager class, which is responsible for managing sound effects in the game.
 // ================================================================================================
 // License: MIT License

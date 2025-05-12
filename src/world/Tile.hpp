@@ -1,8 +1,8 @@
 // ================================================================================================
-// File: Game.hpp
+// File: Tile.hpp
 // Author: Luka Vukorepa (https://github.com/lukav1607)
 // Created: May 11, 2025
-// Description: Defines the Game class, which contains the main game loop and manages the game state.
+// Description: Defines the Tile struct, which represents a tile in the tile map.
 // ================================================================================================
 // License: MIT License
 // Copyright (c) 2025 Luka Vukorepa
@@ -10,22 +10,12 @@
 
 #pragma once
 
-#include <string>
-#include "../state/StateManager.hpp"
-
-class Game
+struct Tile
 {
-public:
-	Game();
-	int run();
-
-private:
-	const std::string PROJECT_NAME = "Platformer";
-
-	void processInput();
-	void update(float fixedTimeStep);
-	void render(float interpolationFactor);
-
-	sf::RenderWindow window;
-	StateManager stateManager;
+	enum class Type
+	{
+		EMPTY,
+		SOLID
+	};
+	Type type;
 };

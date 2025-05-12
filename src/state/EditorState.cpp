@@ -95,7 +95,7 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 		for (size_t i = 0; i < palette.size(); ++i)
 		{
 			sf::FloatRect bounds({ 10.f + i * 60.f, 10.f }, { 50.f, 50.f });
-			if (bounds.contains(mouseWorldPosition))
+			if (bounds.contains(sf::Vector2f(sf::Mouse::getPosition(window))))
 			{
 				selectedTileIndex = i;
 				break;

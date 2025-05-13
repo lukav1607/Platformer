@@ -32,8 +32,14 @@ public:
 
 private:
 	TileMap& map; // Reference to the tile map being edited
+
 	std::vector<Tile::Type> palette;
 	unsigned selectedTileIndex;
+
+	void rebuildGridLines();
+	sf::VertexArray gridLines;
+	sf::Color gridColor;
+	bool isGridShown;
 
 	enum class Mode
 	{
@@ -62,6 +68,8 @@ private:
 		float zoomLevel = 1.f;
 	};
 	static Camera camera;
+
+	sf::View uiView;
 
 	float mouseWheelDelta;
 	sf::Vector2f mouseWorldPosition;

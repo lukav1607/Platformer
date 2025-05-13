@@ -22,9 +22,11 @@ public:
 	TileMap(int width, int height);
 
 	void resize(int width, int height);
+	inline sf::Vector2i getSize() const { return sf::Vector2i(tiles[0].size(), tiles.size()); }
 
 	void setTile(int x, int y, Tile tile);
 	inline const Tile& getTile(int x, int y) const { return tiles[y][x]; }
+	inline const Tile& getTile(sf::Vector2i coords) const { return getTile(coords.x, coords.y); }
 
 	bool isWithinBounds(int x, int y) const;
 	inline bool isWithinBounds(sf::Vector2i coords) const { return isWithinBounds(coords.x, coords.y); }

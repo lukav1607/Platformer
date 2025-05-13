@@ -15,8 +15,9 @@
 
 EditorState::Camera EditorState::camera;
 
-EditorState::EditorState(StateManager& stateManager, TileMap& map) :
+EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map) :
 	State(stateManager),
+	playState(playState),
 	map(map),
 	palette{
 		Tile::Type::EMPTY,
@@ -30,6 +31,7 @@ EditorState::EditorState(StateManager& stateManager, TileMap& map) :
 	gridColor(sf::Color(255, 255, 255, 128)),
 	isGridShown(true),
 	mode(Mode::TILES),
+	undoRedoTimer(UNDO_REDO_INITIAL_DELAY),
 	mouseWheelDelta(0.f)
 {
 	rebuildGridLines();
@@ -37,115 +39,44 @@ EditorState::EditorState(StateManager& stateManager, TileMap& map) :
 
 void EditorState::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)
 {
-	// SFML Events
+	// Process relevant window events
 	for (const auto& event : events)
 	{
-		// Handle mouse wheel scroll (for camera zoom)
+		// Apply mouse wheel scroll delta (for camera zoom)
 		if (const auto* mouseWheelScrolled = event.getIf<sf::Event::MouseWheelScrolled>())
 			mouseWheelDelta += mouseWheelScrolled->delta;
-	}
+	}	
+	
+	sf::Vector2i mouseWindowPosition = sf::Mouse::getPosition(window);              // Get mouse position in window coordinates	
+	mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.view); // Get mouse position in world coordinates relative to the view
+	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);       // Convert mouse position to tile coordinates
 
+	handleModeSwitchInput();
+	handleTogglesInput();
+	handleUndoRedoInput();
+	handleCameraMoveInput();
+	handleCameraPanInput(mouseWorldPosition);
+
+	// Handle mode-based input
+	switch (mode)
+	{
+	case Mode::TILES:
+		handleTileInput(sf::Mouse::getPosition(window), tileCoords);
+		break;
+
+	default:
+		break;
+	}
+	
 	// Exit editor state
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
-	{
 		stateManager.pop();
-		return;
-	}
-
-	// Editor mode
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num1))
-		mode = Mode::TILES;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num2))
-		mode = Mode::OBJECTS;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num3))
-		mode = Mode::ENEMIES;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num4))
-		mode = Mode::ITEMS;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num0))
-		mode = Mode::NONE;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::G))
-		isGridShown = !isGridShown;
-
-	camera.direction = { 0.f, 0.f }; // Reset direction to zero each frame before checking input
-
-	// Camera movement with arrow keys
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
-		camera.direction.x = -1.f;
-	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right))
-		camera.direction.x = 1.f;
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up))
-		camera.direction.y = -1.f;
-	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down))
-		camera.direction.y = 1.f;
-
-	// Get mouse position in world coordinates relative to the view and convert to tile coordinates
-	mouseWorldPosition = window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view);
-	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
-
-	// Camera movement with middle mouse panning
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Middle))
-	{
-		if (!camera.isPanning)
-		{
-			camera.isPanning = true;
-			camera.anchorPoint = mouseWorldPosition;
-		}
-	}
-	else
-	{
-		camera.isPanning = false;
-	}
-
-	// Tile placement
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
-	{
-		bool hasPaletteBeenClicked = false;
-
-		for (size_t i = 0; i < palette.size(); ++i)
-		{
-			sf::FloatRect bounds({ 10.f + i * 60.f, 10.f }, { 50.f, 50.f });
-			if (bounds.contains(sf::Vector2f(sf::Mouse::getPosition(window))))
-			{
-				selectedTileIndex = i;
-				hasPaletteBeenClicked = true;
-				break;
-			}
-		}
-		if (map.isWithinBounds(tileCoords) && !hasPaletteBeenClicked)
-		{
-			map.setTile(tileCoords.x, tileCoords.y, Tile{ palette.at(selectedTileIndex) });
-		}
-	}
-	/*else if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right))
-	{
-		if (map.isWithinBounds(tileCoords))
-		{
-			map.setTile(tileCoords.x, tileCoords.y, Tile{ Tile::Type::EMPTY });
-		}
-	}*/
 }
 
 void EditorState::update(float fixedTimeStep)
 {
-	// Camera zooming
-	if (mouseWheelDelta != 0.f)
-	{
-		camera.zoomLevel -= mouseWheelDelta * camera.ZOOM_SPEED * fixedTimeStep;
-		camera.zoomLevel = std::clamp(camera.zoomLevel, camera.ZOOM_MIN, camera.ZOOM_MAX);
-		mouseWheelDelta = 0.f;
-	}
-
-	// Update the camera position when panning with the middle mouse button
-	if (camera.isPanning)
-	{
-		sf::Vector2f delta = camera.anchorPoint - mouseWorldPosition;
-		camera.view.move(delta * fixedTimeStep * 20.f);
-	}
-	// Update the camera position when moving with the arrow keys
-	else
-	{
-		camera.view.move(camera.direction * camera.MOVE_SPEED * camera.zoomLevel * fixedTimeStep);
-	}
+	handleCameraUpdate(fixedTimeStep);
+	handleUndoRedoUpdate(fixedTimeStep);	
 }
 
 void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
@@ -153,23 +84,100 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	sf::Vector2f mouseWorldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view);
 	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPos);
 
-	//=====================================================================//
-	//                         DRAW IN WORLD                               //
-	//=====================================================================//
+	// Draw in world
 	window.setView(camera.view);
+	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
+	renderGrid(window);                            //    make sure it's in sync with the EditorState camera.
+	renderTileHoverPreview(window, tileCoords);	
 
-	// Draw the grid lines and tilemap border
-	if (isGridShown)
+	// Draw as overlay/UI
+	window.setView(uiView);
+	renderTilePalette(window);
+
+	// Reset the view to the default Editor view (editor camera)
+	window.setView(camera.view);
+}
+
+void EditorState::applyView(sf::RenderWindow& window)
+{
+	// Resize UI view to match the window size
+	uiView.setSize({ static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y) });
+	uiView.setCenter({ static_cast<float>(window.getSize().x) / 2.f, static_cast<float>(window.getSize().y) / 2.f });
+
+	// Apply camera zoom and set the window view size
+	camera.view.setSize({ window.getSize().x * camera.zoomLevel, window.getSize().y * camera.zoomLevel });
+}
+
+void EditorState::rebuildGridLines()
+{
+	//	Vertical lines:
+	for (int x = 0; x <= map.getSize().x; ++x)
 	{
-		sf::RectangleShape border(sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, map.getSize().y * TileMap::TILE_SIZE));
-		border.setFillColor(sf::Color::Transparent);
-		border.setOutlineThickness(2.f);
-		border.setOutlineColor(sf::Color::White);
-		window.draw(border);
-		window.draw(gridLines);
+		float xpos = static_cast<float>(x * TileMap::TILE_SIZE);
+		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, 0.f) }, gridColor });
+		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, map.getSize().y * TileMap::TILE_SIZE) }, gridColor });
 	}
+	//	Horizontal lines:
+	for (int y = 0; y <= map.getSize().y; ++y)
+	{
+		float ypos = static_cast<float>(y * TileMap::TILE_SIZE);
+		gridLines.append(sf::Vertex{ { sf::Vector2f(0.f, ypos) }, gridColor });
+		gridLines.append(sf::Vertex{ { sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, ypos)}, gridColor });
+	}
+}
 
-	// Draw the tile placement/erase preview
+void EditorState::renderGrid(sf::RenderWindow& window)
+{
+	if (!isGridShown)
+		return;
+	
+	sf::RectangleShape border(sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, map.getSize().y * TileMap::TILE_SIZE));
+	border.setFillColor(sf::Color::Transparent);
+	border.setOutlineThickness(2.f);
+	border.setOutlineColor(sf::Color::White);
+	window.draw(border);
+	window.draw(gridLines);
+}
+
+void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
+{
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
+	{
+		bool hasPaletteBeenClicked = false;
+
+		// Tile palette click detection / selection
+		for (size_t i = 0; i < palette.size(); ++i)
+		{
+			sf::FloatRect bounds({ 10.f + i * 60.f, 10.f }, { 50.f, 50.f });
+			if (bounds.contains(sf::Vector2f(mouseWindowPosition)))
+			{
+				selectedTileIndex = i;
+				hasPaletteBeenClicked = true;
+				break;
+			}
+		}
+
+		// Tile placement / erasing
+		if (!hasPaletteBeenClicked &&
+			map.isWithinBounds(tileCoords))
+		{
+			Tile::Type oldType = map.getTile(tileCoords).type;
+			Tile::Type newType = palette.at(selectedTileIndex);
+
+			if (oldType != newType)
+			{
+				map.setTile(tileCoords.x, tileCoords.y, Tile{ palette.at(selectedTileIndex) });
+
+				// Push the action to the undo stack and clear the redo stack
+				undoStack.push(std::make_unique<TileAction>(tileCoords, oldType, newType));
+				redoStack = std::stack<std::unique_ptr<Action>>();
+			}
+		}
+	}
+}
+
+void EditorState::renderTileHoverPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
+{
 	if (map.isWithinBounds(tileCoords) && map.getTile(tileCoords).type != palette.at(selectedTileIndex))
 	{
 		sf::RectangleShape preview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
@@ -195,13 +203,10 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 		preview.setOutlineThickness(2.f);
 		window.draw(preview);
 	}
+}
 
-	//=====================================================================//
-	//                           DRAW IN UI                                //
-	//=====================================================================//
-	window.setView(uiView);
-
-	// Draw the tile palette
+void EditorState::renderTilePalette(sf::RenderWindow& window)
+{
 	for (size_t i = 0; i < palette.size(); ++i)
 	{
 		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
@@ -223,35 +228,158 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 		}
 		window.draw(shape);
 	}
-
-	window.setView(camera.view);
 }
 
-void EditorState::applyView(sf::RenderWindow& window)
+void EditorState::handleTogglesInput()
 {
-	// Resize UI view to match the window size
-	uiView.setSize({ static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y) });
-	uiView.setCenter({ static_cast<float>(window.getSize().x) / 2.f, static_cast<float>(window.getSize().y) / 2.f });
-
-	// Apply camera zoom and set the window view size
-	camera.view.setSize({ window.getSize().x * camera.zoomLevel, window.getSize().y * camera.zoomLevel });
-	///window.setView(camera.view);
+	if (Utility::isKeyReleased(sf::Keyboard::Key::G))
+		isGridShown = !isGridShown;
 }
 
-void EditorState::rebuildGridLines()
+void EditorState::handleModeSwitchInput()
 {
-	//	Vertical lines:
-	for (int x = 0; x <= map.getSize().x; ++x)
+	if (Utility::isKeyReleased(sf::Keyboard::Key::Num1))
+		mode = Mode::TILES;
+	if (Utility::isKeyReleased(sf::Keyboard::Key::Num2))
+		mode = Mode::OBJECTS;
+	if (Utility::isKeyReleased(sf::Keyboard::Key::Num3))
+		mode = Mode::ENEMIES;
+	if (Utility::isKeyReleased(sf::Keyboard::Key::Num4))
+		mode = Mode::ITEMS;
+	if (Utility::isKeyReleased(sf::Keyboard::Key::Num0))
+		mode = Mode::NONE;
+}
+
+void EditorState::handleUndoRedoInput()
+{
+	static bool isUndoOrRedoPressed = false;
+	bool wasUndoOrRedoPressedLastFrame;
+
+	bool ctrlPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl);
+	bool zPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Z);
+	bool yPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Y);
+	bool zReleased = Utility::isKeyReleased(sf::Keyboard::Key::Z);
+	bool yReleased = Utility::isKeyReleased(sf::Keyboard::Key::Y);
+
+	wasUndoOrRedoPressedLastFrame = isUndoOrRedoPressed;
+	isUndoOrRedoPressed = false;
+
+	if (ctrlPressed && (zPressed || yPressed))
 	{
-		float xpos = static_cast<float>(x * TileMap::TILE_SIZE);
-		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, 0.f) }, gridColor });
-		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, map.getSize().y * TileMap::TILE_SIZE) }, gridColor });
+		isUndoOrRedoPressed = true;
+
+		if (!wasUndoOrRedoPressedLastFrame)
+			undoRedoTimer = UNDO_REDO_INITIAL_DELAY;
+
+		if (undoRedoTimer <= 0.f)
+		{
+			undoRedoTimer = UNDO_REDO_INTERVAL;
+
+			if (zPressed)
+				undo();
+			else if (yPressed)
+				redo();
+		}
 	}
-	//	Horizontal lines:
-	for (int y = 0; y <= map.getSize().y; ++y)
+	else if (ctrlPressed && zReleased)
 	{
-		float ypos = static_cast<float>(y * TileMap::TILE_SIZE);
-		gridLines.append(sf::Vertex{ { sf::Vector2f(0.f, ypos) }, gridColor });
-		gridLines.append(sf::Vertex{ { sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, ypos)}, gridColor });
+		undo();
+	}
+	else if (ctrlPressed && yReleased)
+	{
+		redo();
+	}
+	else
+	{
+		undoRedoTimer = 0.f;
+	}
+}
+
+void EditorState::handleUndoRedoUpdate(float fixedTimeStep)
+{
+	if (undoRedoTimer > 0.f)
+		undoRedoTimer -= fixedTimeStep;
+	else
+		undoRedoTimer = 0.f;
+}
+
+void EditorState::undo()
+{
+	if (undoStack.empty())
+		return;
+
+	auto action = std::move(undoStack.top());
+	undoStack.pop();
+	action->undo(map);
+	redoStack.push(std::move(action));
+	
+}
+
+void EditorState::redo()
+{
+	if (redoStack.empty())
+		return;
+
+	auto action = std::move(redoStack.top());
+	redoStack.pop();
+	action->redo(map);
+	undoStack.push(std::move(action));
+}
+
+void EditorState::handleCameraMoveInput()
+{
+	camera.direction = { 0.f, 0.f }; // Reset direction to zero each frame before checking input
+
+	// Camera movement with arrow keys
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
+		camera.direction.x = -1.f;
+	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right))
+		camera.direction.x = 1.f;
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up))
+		camera.direction.y = -1.f;
+	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down))
+		camera.direction.y = 1.f;
+}
+
+void EditorState::handleCameraPanInput(sf::Vector2f mouseWorldPosition)
+{
+	// Get mouse position in world coordinates relative to the view and convert to tile coordinates
+	///mouseWorldPosition = window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view);
+	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
+
+	// Camera movement with middle mouse panning
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Middle))
+	{
+		if (!camera.isPanning)
+		{
+			camera.isPanning = true;
+			camera.anchorPoint = mouseWorldPosition;
+		}
+	}
+	else
+	{
+		camera.isPanning = false;
+	}
+}
+
+void EditorState::handleCameraUpdate(float fixedTimeStep)
+{
+	// Update the camera zoom level based on mouse wheel input
+	if (mouseWheelDelta != 0.f)
+	{
+		camera.zoomLevel -= mouseWheelDelta * camera.ZOOM_SPEED * fixedTimeStep;
+		camera.zoomLevel = std::clamp(camera.zoomLevel, camera.ZOOM_MIN, camera.ZOOM_MAX);
+		mouseWheelDelta = 0.f;
+	}
+	// Update the camera position when panning with the middle mouse button
+	if (camera.isPanning)
+	{
+		sf::Vector2f delta = camera.anchorPoint - mouseWorldPosition;
+		camera.view.move(delta * fixedTimeStep * 20.f);
+	}
+	// Update the camera position when moving with the arrow keys
+	else
+	{
+		camera.view.move(camera.direction * camera.MOVE_SPEED * camera.zoomLevel * fixedTimeStep);
 	}
 }

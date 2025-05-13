@@ -21,6 +21,9 @@ class TileMap : public sf::Drawable, public sf::Transformable
 public:
 	TileMap(int width, int height);
 
+	bool saveToJson(const std::string& filename) const;
+	bool loadFromJson(const std::string& filename);
+
 	void resize(int width, int height);
 	inline sf::Vector2i getSize() const { return sf::Vector2i(tiles[0].size(), tiles.size()); }
 

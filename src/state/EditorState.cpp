@@ -51,6 +51,7 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 	mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.view); // Get mouse position in world coordinates relative to the view
 	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);       // Convert mouse position to tile coordinates
 
+	handleSaveLoadInput();
 	handleModeSwitchInput();
 	handleTogglesInput();
 	handleUndoRedoInput();
@@ -106,6 +107,24 @@ void EditorState::applyView(sf::RenderWindow& window)
 
 	// Apply camera zoom and set the window view size
 	camera.view.setSize({ window.getSize().x * camera.zoomLevel, window.getSize().y * camera.zoomLevel });
+}
+
+void EditorState::handleSaveLoadInput()
+{
+	bool ctrlPressed = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl);
+	bool sReleased = Utility::isKeyReleased(sf::Keyboard::Key::S);
+	bool lReleased = Utility::isKeyReleased(sf::Keyboard::Key::L);
+
+	if (ctrlPressed && sReleased)
+	{
+		if (map.saveToJson("assets/maps/test_map.json"))
+			std::cout << "Map saved successfully!" << std::endl;
+	}
+	if (ctrlPressed && lReleased)
+	{
+		if (map.loadFromJson("assets/maps/test_map.json"))
+			std::cout << "Map loaded successfully!" << std::endl;
+	}
 }
 
 void EditorState::rebuildGridLines()

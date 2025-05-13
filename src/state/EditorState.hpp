@@ -37,6 +37,7 @@ public:
 														  // renders the PlayState from it's render function despite this flag.
 
 private:
+	void handleSaveLoadInput();
 	TileMap& map; // Reference to the tile map being edited
 	PlayState& playState; // Reference to the PlayState for rendering
 

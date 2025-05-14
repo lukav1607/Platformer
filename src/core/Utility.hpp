@@ -11,11 +11,13 @@
 #pragma once
 
 #include <SFML/Window/Keyboard.hpp>
+#include <SFML/Window/Mouse.hpp>
 #include <SFML/System/Vector2.hpp>
 
 namespace Utility
 {
 	bool isKeyReleased(sf::Keyboard::Key key);
+	bool isButtonReleased(sf::Mouse::Button button);
 
 	// Generates a random pitch value based on a given variation percentage.
 	// Example use: variationPercent 0.15f == 15% variation

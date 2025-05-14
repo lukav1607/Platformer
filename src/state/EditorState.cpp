@@ -27,6 +27,7 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 		Tile::Type::DOOR
 	},
 	selectedTileIndex(0U),
+	isDrawingSelectionRect(false),
 	gridLines(sf::PrimitiveType::Lines),
 	gridColor(sf::Color(255, 255, 255, 128)),
 	isGridShown(true),
@@ -63,6 +64,7 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 	{
 	case Mode::TILES:
 		handleTileInput(sf::Mouse::getPosition(window), tileCoords);
+		handleSelectionRectInput(mouseWorldPosition, tileCoords);
 		break;
 
 	default:
@@ -88,8 +90,9 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	// Draw in world
 	window.setView(camera.view);
 	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
-	renderGrid(window);                            //    make sure it's in sync with the EditorState camera.
-	renderTileHoverPreview(window, tileCoords);	
+	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
+	renderTileHoverPreview(window, tileCoords);
+	renderGrid(window);	
 
 	// Draw as overlay/UI
 	window.setView(uiView);
@@ -160,7 +163,7 @@ void EditorState::renderGrid(sf::RenderWindow& window)
 
 void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
 {
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
+	if (!isDrawingSelectionRect && sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
 	{
 		bool hasPaletteBeenClicked = false;
 
@@ -193,6 +196,75 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 			}
 		}
 	}
+}
+
+void EditorState::handleSelectionRectInput(sf::Vector2f worldWorldPosition, sf::Vector2i tileCoords)
+{
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right))
+	{
+		if (!isDrawingSelectionRect)
+		{
+			isDrawingSelectionRect = true;
+			selectionStart = mouseWorldPosition;
+		}
+		selectionEnd = mouseWorldPosition;		
+	}
+	else if (isDrawingSelectionRect)
+	{
+		isDrawingSelectionRect = false;
+	}
+
+	if (isDrawingSelectionRect &&
+		Utility::isButtonReleased(sf::Mouse::Button::Left))
+	{
+		sf::Vector2i selectionStartCoords = Utility::worldToTileCoords(selectionStart);
+		sf::Vector2i selectionEndCoords = Utility::worldToTileCoords(selectionEnd);
+
+		sf::Vector2i topLeft = { std::min(selectionStartCoords.x, selectionEndCoords.x), std::min(selectionStartCoords.y, selectionEndCoords.y) };
+		sf::Vector2i bottomRight = { std::max(selectionStartCoords.x, selectionEndCoords.x), std::max(selectionStartCoords.y, selectionEndCoords.y) };
+
+		std::vector<std::unique_ptr<Action>> batch;
+
+		for (int y = topLeft.y; y <= bottomRight.y; ++y)
+		{
+			for (int x = topLeft.x; x <= bottomRight.x; ++x)
+			{
+				if (map.isWithinBounds({ x, y }))
+				{
+					Tile::Type oldType = map.getTile({ x, y }).type;
+					Tile::Type newType = palette.at(selectedTileIndex);
+					if (oldType != newType)
+					{
+						batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, newType));
+						map.setTile(x, y, Tile{ newType });
+					}
+				}
+			}
+		}
+		if (!batch.empty())
+		{
+			// Push the batch of actions to the undo stack and clear the redo stack
+			undoStack.push(std::make_unique<BatchAction>(std::move(batch)));
+			redoStack = std::stack<std::unique_ptr<Action>>();
+		}
+	}
+}
+
+void EditorState::renderSelectionRect(sf::RenderWindow& window)
+{
+	if (!isDrawingSelectionRect)
+		return;
+
+	sf::Vector2f topLeft = { std::min(selectionStart.x, selectionEnd.x), std::min(selectionStart.y, selectionEnd.y) };
+	sf::Vector2f bottomRight = { std::max(selectionStart.x, selectionEnd.x), std::max(selectionStart.y, selectionEnd.y) };
+	sf::Vector2f size = { bottomRight.x - topLeft.x, bottomRight.y - topLeft.y };
+
+	sf::RectangleShape outline(size);
+	outline.setPosition(topLeft);
+	outline.setFillColor(sf::Color::Transparent);
+	outline.setOutlineColor(sf::Color::Red);
+	outline.setOutlineThickness(2.f);
+	window.draw(outline);
 }
 
 void EditorState::renderTileHoverPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)

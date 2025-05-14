@@ -19,7 +19,6 @@
 #include "../world/TileMap.hpp"
 
 struct Action;
-struct TileAction;
 
 class EditorState : public State
 {
@@ -48,10 +47,15 @@ private:
 	bool isGridShown;
 
 	void handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
+	void handleSelectionRectInput(sf::Vector2f mouseWorldPosition, sf::Vector2i tileCoords);
+	void renderSelectionRect(sf::RenderWindow& window);
 	void renderTileHoverPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderTilePalette(sf::RenderWindow& window);
 	std::vector<Tile::Type> palette;
 	unsigned selectedTileIndex;
+	bool isDrawingSelectionRect;
+	sf::Vector2f selectionStart;
+	sf::Vector2f selectionEnd;
 
 	void handleTogglesInput();
 
@@ -119,6 +123,25 @@ struct TileAction : public Action
 	TileAction(sf::Vector2i coords, Tile::Type oldType, Tile::Type newType)
 		: coords(coords), oldType(oldType), newType(newType)
 	{}
-	void undo(TileMap& map) override { map.setTile(coords.x, coords.y, Tile{ oldType }); }
-	void redo(TileMap& map) override { map.setTile(coords.x, coords.y, Tile{ newType }); }
+	inline void undo(TileMap& map) override { map.setTile(coords.x, coords.y, Tile{ oldType }); }
+	inline void redo(TileMap& map) override { map.setTile(coords.x, coords.y, Tile{ newType }); }
+};
+
+struct BatchAction : public Action
+{
+	std::vector<std::unique_ptr<Action>> actions;
+
+	BatchAction(std::vector<std::unique_ptr<Action>>&& actions)
+		: actions(std::move(actions))
+	{}
+	inline void undo(TileMap& map) override
+	{
+		for (auto it = actions.rbegin(); it != actions.rend(); ++it)
+			(*it)->undo(map);
+	}
+	inline void redo(TileMap& map) override
+	{
+		for (auto& action : actions)
+			action->redo(map);
+	}
 };

@@ -23,6 +23,17 @@ bool Utility::isKeyReleased(sf::Keyboard::Key key)
 	return !isPressedNow && wasPressedLastFrame;
 }
 
+bool Utility::isButtonReleased(sf::Mouse::Button button)
+{
+	static std::map<sf::Mouse::Button, bool> buttonStates;
+	if (buttonStates.find(button) == buttonStates.end())
+		buttonStates[button] = false;
+	bool isPressedNow = sf::Mouse::isButtonPressed(button);
+	bool wasPressedLastFrame = buttonStates[button];
+	buttonStates[button] = isPressedNow;
+	return !isPressedNow && wasPressedLastFrame;
+}
+
 float Utility::randomPitch(float variationPercent, float basePitch)
 {
 	static std::random_device rd;

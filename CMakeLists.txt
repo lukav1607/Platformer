@@ -22,7 +22,7 @@ add_executable(
     "src/world/Tile.cpp"
     "src/state/StateManager.cpp"
     "src/state/PlayState.cpp"
-    "src/state/EditorState.cpp")
+    "src/state/EditorState.cpp" "src/state/editor/TileBrush.cpp" "src/state/editor/SelectionSystem.cpp" "src/state/editor/UndoManager.cpp" "src/state/editor/InputHandler.cpp")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 # Don't link SFML::Main on non-Windows platforms

@@ -47,15 +47,25 @@ private:
 	bool isGridShown;
 
 	void handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
-	void handleSelectionRectInput(sf::Vector2f mouseWorldPosition, sf::Vector2i tileCoords);
-	void renderSelectionRect(sf::RenderWindow& window);
-	void renderTileHoverPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
+	void handleSelectionInput(sf::Vector2i tileCoords);
+	void applySelectionAction();
+	void renderSelectionRect(sf::RenderWindow& window) const;
+	void handleTilePreviewRendering(sf::RenderWindow& window, sf::Vector2i tileCoords);
+	void renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderTilePalette(sf::RenderWindow& window);
 	std::vector<Tile::Type> palette;
 	unsigned selectedTileIndex;
-	bool isDrawingSelectionRect;
-	sf::Vector2f selectionStart;
-	sf::Vector2f selectionEnd;
+	bool isDrawingSelection;
+	sf::Vector2i selectionStart;
+	sf::Vector2i selectionEnd;
+	enum class SelectionAction
+	{
+		NONE,
+		PLACE,
+		ERASE_SPECIFIC,
+		ERASE_ALL
+	};
+	SelectionAction selectionAction;
 
 	void handleTogglesInput();
 
@@ -79,6 +89,8 @@ private:
 	float undoRedoTimer;
 	std::stack<std::unique_ptr<Action>> undoStack;
 	std::stack<std::unique_ptr<Action>> redoStack;
+
+	//std::vector<std::unique_ptr<Action>> batch;
 
 	void handleCameraMoveInput();
 	void handleCameraPanInput(sf::Vector2f mouseWorldPosition);

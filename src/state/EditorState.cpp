@@ -20,14 +20,14 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	playState(playState),
 	map(map),
 	palette{
-		Tile::Type::EMPTY,
 		Tile::Type::BACKGROUND,
 		Tile::Type::SOLID,
 		Tile::Type::WATER,
 		Tile::Type::DOOR
 	},
 	selectedTileIndex(0U),
-	isDrawingSelectionRect(false),
+	isDrawingSelection(false),
+	selectionAction(SelectionAction::NONE),
 	gridLines(sf::PrimitiveType::Lines),
 	gridColor(sf::Color(255, 255, 255, 128)),
 	isGridShown(true),
@@ -63,8 +63,8 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 	switch (mode)
 	{
 	case Mode::TILES:
+		handleSelectionInput(tileCoords);
 		handleTileInput(sf::Mouse::getPosition(window), tileCoords);
-		handleSelectionRectInput(mouseWorldPosition, tileCoords);
 		break;
 
 	default:
@@ -91,7 +91,7 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	window.setView(camera.view);
 	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
 	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
-	renderTileHoverPreview(window, tileCoords);
+	handleTilePreviewRendering(window, tileCoords);
 	renderGrid(window);	
 
 	// Draw as overlay/UI
@@ -126,12 +126,17 @@ void EditorState::handleSaveLoadInput()
 	if (ctrlPressed && lReleased)
 	{
 		if (map.loadFromJson("assets/maps/test_map.json"))
+		{
+			rebuildGridLines();
 			std::cout << "Map loaded successfully!" << std::endl;
+		}
 	}
 }
 
 void EditorState::rebuildGridLines()
 {
+	gridLines.clear();
+
 	//	Vertical lines:
 	for (int x = 0; x <= map.getSize().x; ++x)
 	{
@@ -163,10 +168,19 @@ void EditorState::renderGrid(sf::RenderWindow& window)
 
 void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
 {
-	if (!isDrawingSelectionRect && sf::Mouse::isButtonPressed(sf::Mouse::Button::Left))
-	{
-		bool hasPaletteBeenClicked = false;
+	if (isDrawingSelection)
+		return;
 
+	static std::vector<std::unique_ptr<Action>> batch;
+
+	bool isLeftClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+	bool isRightClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Right);
+	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
+	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
+	bool hasPaletteBeenClicked = false;
+
+	if (isLeftClickHeld)
+	{
 		// Tile palette click detection / selection
 		for (size_t i = 0; i < palette.size(); ++i)
 		{
@@ -178,96 +192,175 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 				break;
 			}
 		}
+	}
+	// Tile placement
+	if (!hasPaletteBeenClicked &&
+		map.isWithinBounds(tileCoords))
+	{
+		Tile::Type oldType = map.getTile(tileCoords).type;
+		Tile::Type newType = isLeftClickHeld ? palette.at(selectedTileIndex) : Tile::Type::EMPTY;
 
-		// Tile placement / erasing
-		if (!hasPaletteBeenClicked &&
-			map.isWithinBounds(tileCoords))
+		if (oldType != newType)
 		{
-			Tile::Type oldType = map.getTile(tileCoords).type;
-			Tile::Type newType = palette.at(selectedTileIndex);
-
-			if (oldType != newType)
-			{
+			if (isLeftClickHeld)
 				map.setTile(tileCoords.x, tileCoords.y, Tile{ palette.at(selectedTileIndex) });
 
-				// Push the action to the undo stack and clear the redo stack
-				undoStack.push(std::make_unique<TileAction>(tileCoords, oldType, newType));
-				redoStack = std::stack<std::unique_ptr<Action>>();
-			}
+			else if (isRightClickHeld)
+				map.setTile(tileCoords.x, tileCoords.y, Tile{ Tile::Type::EMPTY });
+
+			if (isLeftClickHeld || isRightClickHeld)
+				batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		}
+	}
+	if (!batch.empty() && (isLeftClickReleased || isRightClickReleased))
+	{
+		// Push the batch of actions to the undo stack and clear the redo stack
+		undoStack.push(std::make_unique<BatchAction>(std::move(batch)));
+		redoStack = std::stack<std::unique_ptr<Action>>();
+	}
+}
+
+void EditorState::handleSelectionInput(sf::Vector2i tileCoords)
+{
+	bool isLeftClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
+	bool isRightClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Right);
+	bool isCtrlHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl);
+	bool isShiftHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift);
+
+	if (!isDrawingSelection)
+	{
+		if (isShiftHeld && isLeftClickHeld)
+		{
+			isDrawingSelection = true;
+			selectionStart = tileCoords;
+			selectionAction = SelectionAction::PLACE;
+		}
+		else if (isShiftHeld && isRightClickHeld)
+		{
+			isDrawingSelection = true;
+			selectionStart = tileCoords;
+
+			if (isCtrlHeld)
+				selectionAction = SelectionAction::ERASE_ALL;
+			else
+				selectionAction = SelectionAction::ERASE_SPECIFIC;
+		}
+	}
+
+	if (isDrawingSelection)
+	{
+		selectionEnd = tileCoords;
+
+		if (!(isLeftClickHeld || isRightClickHeld))
+		{
+			applySelectionAction();
+			isDrawingSelection = false;
+			selectionAction = SelectionAction::NONE;
 		}
 	}
 }
 
-void EditorState::handleSelectionRectInput(sf::Vector2f worldWorldPosition, sf::Vector2i tileCoords)
+void EditorState::applySelectionAction()
 {
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right))
+	sf::Vector2i topLeft = { std::min(selectionStart.x, selectionEnd.x), std::min(selectionStart.y, selectionEnd.y) };
+	sf::Vector2i bottomRight = { std::max(selectionStart.x, selectionEnd.x), std::max(selectionStart.y, selectionEnd.y) };
+
+	std::vector<std::unique_ptr<Action>> batch;
+
+	for (int y = topLeft.y; y <= bottomRight.y; ++y)
 	{
-		if (!isDrawingSelectionRect)
+		for (int x = topLeft.x; x <= bottomRight.x; ++x)
 		{
-			isDrawingSelectionRect = true;
-			selectionStart = mouseWorldPosition;
-		}
-		selectionEnd = mouseWorldPosition;		
-	}
-	else if (isDrawingSelectionRect)
-	{
-		isDrawingSelectionRect = false;
-	}
+			if (!map.isWithinBounds({ x, y }))
+				continue;
 
-	if (isDrawingSelectionRect &&
-		Utility::isButtonReleased(sf::Mouse::Button::Left))
-	{
-		sf::Vector2i selectionStartCoords = Utility::worldToTileCoords(selectionStart);
-		sf::Vector2i selectionEndCoords = Utility::worldToTileCoords(selectionEnd);
+			Tile::Type oldType = map.getTile({ x, y }).type;
+			Tile::Type newType = palette.at(selectedTileIndex);
 
-		sf::Vector2i topLeft = { std::min(selectionStartCoords.x, selectionEndCoords.x), std::min(selectionStartCoords.y, selectionEndCoords.y) };
-		sf::Vector2i bottomRight = { std::max(selectionStartCoords.x, selectionEndCoords.x), std::max(selectionStartCoords.y, selectionEndCoords.y) };
-
-		std::vector<std::unique_ptr<Action>> batch;
-
-		for (int y = topLeft.y; y <= bottomRight.y; ++y)
-		{
-			for (int x = topLeft.x; x <= bottomRight.x; ++x)
+			if (selectionAction == SelectionAction::PLACE)
 			{
-				if (map.isWithinBounds({ x, y }))
+				switch (mode)
 				{
-					Tile::Type oldType = map.getTile({ x, y }).type;
-					Tile::Type newType = palette.at(selectedTileIndex);
-					if (oldType != newType)
-					{
-						batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, newType));
-						map.setTile(x, y, Tile{ newType });
-					}
+				case Mode::TILES:
+					if (oldType == newType)
+						continue;
+					batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, newType));
+					map.setTile(x, y, Tile{ newType });
+					break;
+				default:
+					break;
 				}
 			}
+			else if (selectionAction == SelectionAction::ERASE_SPECIFIC)
+			{
+				switch (mode)
+				{
+				case Mode::TILES:
+					batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, Tile::Type::EMPTY));
+					map.setTile(x, y, Tile{ Tile::Type::EMPTY });
+					break;
+				default:
+					break;
+				}
+			}
+			else if (selectionAction == SelectionAction::ERASE_ALL)
+			{
+				batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, Tile::Type::EMPTY));
+				map.setTile(x, y, Tile{ Tile::Type::EMPTY });
+			}
 		}
-		if (!batch.empty())
-		{
-			// Push the batch of actions to the undo stack and clear the redo stack
-			undoStack.push(std::make_unique<BatchAction>(std::move(batch)));
-			redoStack = std::stack<std::unique_ptr<Action>>();
-		}
+	}
+	if (!batch.empty())
+	{
+		// Push the batch of actions to the undo stack and clear the redo stack
+		undoStack.push(std::make_unique<BatchAction>(std::move(batch)));
+		redoStack = std::stack<std::unique_ptr<Action>>();
 	}
 }
 
-void EditorState::renderSelectionRect(sf::RenderWindow& window)
+void EditorState::renderSelectionRect(sf::RenderWindow& window) const
 {
-	if (!isDrawingSelectionRect)
+	if (!isDrawingSelection)
 		return;
 
-	sf::Vector2f topLeft = { std::min(selectionStart.x, selectionEnd.x), std::min(selectionStart.y, selectionEnd.y) };
-	sf::Vector2f bottomRight = { std::max(selectionStart.x, selectionEnd.x), std::max(selectionStart.y, selectionEnd.y) };
-	sf::Vector2f size = { bottomRight.x - topLeft.x, bottomRight.y - topLeft.y };
+	sf::Vector2f selectionStartPos = Utility::tileToWorldCoords(selectionStart);
+	sf::Vector2f selectionEndPos = Utility::tileToWorldCoords(selectionEnd);
+
+	sf::Vector2f topLeft = { std::min(selectionStartPos.x, selectionEndPos.x), std::min(selectionStartPos.y, selectionEndPos.y) };
+	sf::Vector2f bottomRight = { std::max(selectionStartPos.x, selectionEndPos.x), std::max(selectionStartPos.y, selectionEndPos.y) };
+	sf::Vector2f size = { bottomRight.x - topLeft.x + TileMap::TILE_SIZE, bottomRight.y - topLeft.y + TileMap::TILE_SIZE};
 
 	sf::RectangleShape outline(size);
 	outline.setPosition(topLeft);
 	outline.setFillColor(sf::Color::Transparent);
-	outline.setOutlineColor(sf::Color::Red);
+	outline.setOutlineColor(sf::Color::White);
 	outline.setOutlineThickness(2.f);
 	window.draw(outline);
 }
 
-void EditorState::renderTileHoverPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
+void EditorState::handleTilePreviewRendering(sf::RenderWindow& window, sf::Vector2i tileCoords)
+{
+	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right) ||
+		selectionAction == SelectionAction::ERASE_SPECIFIC ||
+		selectionAction == SelectionAction::ERASE_ALL)
+		return;
+
+	if (isDrawingSelection)
+	{
+		sf::Vector2i topLeft = { std::min(selectionStart.x, selectionEnd.x), std::min(selectionStart.y, selectionEnd.y) };
+		sf::Vector2i bottomRight = { std::max(selectionStart.x, selectionEnd.x), std::max(selectionStart.y, selectionEnd.y) };
+
+		for (int y = topLeft.y; y <= bottomRight.y; ++y)
+			for (int x = topLeft.x; x <= bottomRight.x; ++x)
+				renderTilePreview(window, { x, y });
+	}
+	else
+	{
+		renderTilePreview(window, tileCoords);
+	}
+}
+
+void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
 	if (map.isWithinBounds(tileCoords) && map.getTile(tileCoords).type != palette.at(selectedTileIndex))
 	{

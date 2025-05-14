@@ -15,10 +15,10 @@
 
 PlayState::PlayState(StateManager& stateManager) :
 	State(stateManager),
-	map(30, 20)
+	map(64, 64)
 {
-	for (int x = 0; x < 30; ++x)
-		map.setTile(x, 19, Tile{ Tile::Type::SOLID });
+	//for (int x = 0; x < 30; ++x)
+	//	map.setTile(x, 19, Tile{ Tile::Type::SOLID });
 }
 
 void PlayState::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)

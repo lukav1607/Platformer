@@ -44,6 +44,11 @@ float Utility::randomPitch(float variationPercent, float basePitch)
 	return basePitch + randomFactor * 2.0f * variationPercent;
 }
 
+sf::Vector2f Utility::interpolate(sf::Vector2f a, sf::Vector2f b, float factor)
+{
+	return a * (1.f - factor) + b * factor;
+}
+
 sf::Vector2f Utility::normalize(sf::Vector2f vector)
 {
 	float length = std::hypotf(vector.x, vector.y);

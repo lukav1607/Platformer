@@ -23,6 +23,9 @@ namespace Utility
 	// Example use: variationPercent 0.15f == 15% variation
 	float randomPitch(float variationPercent, float basePitch = 1.f);
 
+	// Interpolates between two vectors based on a given factor (0.0 to 1.0).
+	sf::Vector2f interpolate(sf::Vector2f a, sf::Vector2f b, float factor);
+
 	// Normalizes a vector to a unit length.
 	sf::Vector2f normalize(sf::Vector2f vector);
 

@@ -14,6 +14,7 @@
 
 #include "../State.hpp"
 #include "../../world/TileMap.hpp"
+#include "Player.hpp"
 
 class PlayState : public State
 {
@@ -28,4 +29,6 @@ public:
 
 private:
 	TileMap map;
+
+	Player player;
 };

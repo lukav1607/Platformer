@@ -29,7 +29,7 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	isDrawingSelection(false),
 	selectionAction(SelectionAction::NONE),
 	gridLines(sf::PrimitiveType::Lines),
-	gridColor(sf::Color(255, 255, 255, 128)),
+	gridColor(sf::Color(255, 255, 255, 64)),
 	isGridShown(true),
 	mode(Mode::TILES),
 	isErasing(false),
@@ -161,7 +161,7 @@ void EditorState::renderGrid(sf::RenderWindow& window)
 	sf::RectangleShape border(sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, map.getSize().y * TileMap::TILE_SIZE));
 	border.setFillColor(sf::Color::Transparent);
 	border.setOutlineThickness(2.f);
-	border.setOutlineColor(sf::Color::White);
+	border.setOutlineColor(sf::Color(255, 255, 255, 128));
 	window.draw(border);
 	window.draw(gridLines);
 }

@@ -15,7 +15,7 @@
 
 PlayState::PlayState(StateManager& stateManager) :
 	State(stateManager),
-	map(64, 64)
+	map(32, 8)
 {
 	//for (int x = 0; x < 30; ++x)
 	//	map.setTile(x, 19, Tile{ Tile::Type::SOLID });
@@ -26,15 +26,19 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 	// Enter editor state
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
 		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map));
+
+	player.processInput(window, events);
 }
 
 void PlayState::update(float fixedTimeStep)
 {
+	player.update(fixedTimeStep, map);
 }
 
 void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
 {
 	window.draw(map);
+	player.render(window, interpolationFactor);
 }
 
 void PlayState::applyView(sf::RenderWindow& window)

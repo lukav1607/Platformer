@@ -10,20 +10,20 @@
 #include <iostream>
 #include <algorithm>
 #include "EditorState.hpp"
-#include "StateManager.hpp"
-#include "../core/Utility.hpp"
+#include "../StateManager.hpp"
+#include "../../core/Utility.hpp"
 
-EditorState::Camera EditorState::camera;
+EditorCamera EditorState::camera;
 
 EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map) :
 	State(stateManager),
 	playState(playState),
 	map(map),
 	palette{
-		Tile::Type::BACKGROUND,
-		Tile::Type::SOLID,
-		Tile::Type::WATER,
-		Tile::Type::DOOR
+		Tile::Type::Background,
+		Tile::Type::Solid,
+		Tile::Type::Water,
+		Tile::Type::Door
 	},
 	selectedTileIndex(0U),
 	isDrawingSelection(false),
@@ -32,6 +32,7 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	gridColor(sf::Color(255, 255, 255, 128)),
 	isGridShown(true),
 	mode(Mode::TILES),
+	isErasing(false),
 	undoRedoTimer(UNDO_REDO_INITIAL_DELAY),
 	mouseWheelDelta(0.f)
 {
@@ -48,16 +49,15 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 			mouseWheelDelta += mouseWheelScrolled->delta;
 	}	
 	
-	sf::Vector2i mouseWindowPosition = sf::Mouse::getPosition(window);              // Get mouse position in window coordinates	
-	mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.view); // Get mouse position in world coordinates relative to the view
-	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);       // Convert mouse position to tile coordinates
+	sf::Vector2i mouseWindowPosition = sf::Mouse::getPosition(window);                   // Get mouse position in window coordinates	
+	mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.getView()); // Get mouse position in world coordinates relative to the view
+	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);            // Convert mouse position to tile coordinates
 
 	handleSaveLoadInput();
 	handleModeSwitchInput();
 	handleTogglesInput();
 	handleUndoRedoInput();
-	handleCameraMoveInput();
-	handleCameraPanInput(mouseWorldPosition);
+	camera.handleInput(mouseWorldPosition);
 
 	// Handle mode-based input
 	switch (mode)
@@ -78,17 +78,18 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 
 void EditorState::update(float fixedTimeStep)
 {
-	handleCameraUpdate(fixedTimeStep);
+	camera.update(fixedTimeStep, mouseWheelDelta, mouseWorldPosition);
 	handleUndoRedoUpdate(fixedTimeStep);	
+
+	mouseWheelDelta = 0.f;
 }
 
 void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 {
-	sf::Vector2f mouseWorldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view);
-	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPos);
+	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
 
 	// Draw in world
-	window.setView(camera.view);
+	window.setView(camera.getView());
 	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
 	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
 	handleTilePreviewRendering(window, tileCoords);
@@ -99,7 +100,7 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	renderTilePalette(window);
 
 	// Reset the view to the default Editor view (editor camera)
-	window.setView(camera.view);
+	window.setView(camera.getView());
 }
 
 void EditorState::applyView(sf::RenderWindow& window)
@@ -108,8 +109,7 @@ void EditorState::applyView(sf::RenderWindow& window)
 	uiView.setSize({ static_cast<float>(window.getSize().x), static_cast<float>(window.getSize().y) });
 	uiView.setCenter({ static_cast<float>(window.getSize().x) / 2.f, static_cast<float>(window.getSize().y) / 2.f });
 
-	// Apply camera zoom and set the window view size
-	camera.view.setSize({ window.getSize().x * camera.zoomLevel, window.getSize().y * camera.zoomLevel });
+	camera.resize(window.getSize());
 }
 
 void EditorState::handleSaveLoadInput()
@@ -202,10 +202,10 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 
 		if (oldType != newType)
 		{
-			if (isLeftClickHeld)
+			if (isLeftClickHeld && !isErasing)
 				map.setTile(tileCoords.x, tileCoords.y, Tile{ palette.at(selectedTileIndex) });
 
-			else if (isRightClickHeld)
+			else if (isLeftClickHeld && isErasing)
 				map.setTile(tileCoords.x, tileCoords.y, Tile{ Tile::Type::EMPTY });
 
 			if (isLeftClickHeld || isRightClickHeld)
@@ -267,6 +267,8 @@ void EditorState::applySelectionAction()
 
 	std::vector<std::unique_ptr<Action>> batch;
 
+	Tile::Type newType = palette.at(selectedTileIndex);
+
 	for (int y = topLeft.y; y <= bottomRight.y; ++y)
 	{
 		for (int x = topLeft.x; x <= bottomRight.x; ++x)
@@ -275,7 +277,6 @@ void EditorState::applySelectionAction()
 				continue;
 
 			Tile::Type oldType = map.getTile({ x, y }).type;
-			Tile::Type newType = palette.at(selectedTileIndex);
 
 			if (selectionAction == SelectionAction::PLACE)
 			{
@@ -285,7 +286,7 @@ void EditorState::applySelectionAction()
 					if (oldType == newType)
 						continue;
 					batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, newType));
-					map.setTile(x, y, Tile{ newType });
+					map.setTile(x, y, Tile{ newType }, false);
 					break;
 				default:
 					break;
@@ -297,7 +298,7 @@ void EditorState::applySelectionAction()
 				{
 				case Mode::TILES:
 					batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, Tile::Type::EMPTY));
-					map.setTile(x, y, Tile{ Tile::Type::EMPTY });
+					map.setTile(x, y, Tile{ Tile::Type::EMPTY }, false);
 					break;
 				default:
 					break;
@@ -306,10 +307,12 @@ void EditorState::applySelectionAction()
 			else if (selectionAction == SelectionAction::ERASE_ALL)
 			{
 				batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, Tile::Type::EMPTY));
-				map.setTile(x, y, Tile{ Tile::Type::EMPTY });
+				map.setTile(x, y, Tile{ Tile::Type::EMPTY }, false);
 			}
 		}
 	}
+	map.rebuildVisuals();
+
 	if (!batch.empty())
 	{
 		// Push the batch of actions to the undo stack and clear the redo stack
@@ -368,19 +371,19 @@ void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileC
 		preview.setPosition({ static_cast<float>(tileCoords.x * TileMap::TILE_SIZE), static_cast<float>(tileCoords.y * TileMap::TILE_SIZE) });
 		preview.setFillColor([&]
 			{
+				if (isErasing)
+					return sf::Color::Transparent;
 				switch (palette.at(selectedTileIndex))
 				{
-				case Tile::Type::EMPTY: return sf::Color::Transparent;
-				case Tile::Type::BACKGROUND: return sf::Color(255, 255, 0, 100);
-				case Tile::Type::SOLID: return sf::Color(0, 255, 0, 100);
-				case Tile::Type::WATER: return sf::Color(0, 0, 255, 100);
-				case Tile::Type::DOOR: return sf::Color(255, 0, 255, 100);
-				default: return sf::Color::Transparent;
+				case Tile::Type::Background: return sf::Color(255, 255, 0, 100);
+				case Tile::Type::Solid: return sf::Color(0, 255, 0, 100);
+				case Tile::Type::Water: return sf::Color(0, 0, 255, 100);
+				case Tile::Type::Door: return sf::Color(255, 0, 255, 100);
 				}
 			}());
 		preview.setOutlineColor([&]
 			{
-				if (palette.at(selectedTileIndex) == Tile::Type::EMPTY)
+				if (isErasing)
 					return sf::Color::Red;
 				return sf::Color::Transparent;
 			}());
@@ -398,11 +401,10 @@ void EditorState::renderTilePalette(sf::RenderWindow& window)
 
 		switch (palette.at(i))
 		{
-		case Tile::Type::EMPTY: shape.setFillColor(sf::Color::Transparent); shape.setOutlineColor(sf::Color::Red); shape.setOutlineThickness(2.f); break;
-		case Tile::Type::BACKGROUND: shape.setFillColor(sf::Color::Yellow); break;
-		case Tile::Type::SOLID: shape.setFillColor(sf::Color::Green); break;
-		case Tile::Type::WATER: shape.setFillColor(sf::Color::Blue); break;
-		case Tile::Type::DOOR: shape.setFillColor(sf::Color::Magenta); break;
+		case Tile::Type::Background: shape.setFillColor(sf::Color::Yellow); break;
+		case Tile::Type::Solid: shape.setFillColor(sf::Color::Green); break;
+		case Tile::Type::Water: shape.setFillColor(sf::Color::Blue); break;
+		case Tile::Type::Door: shape.setFillColor(sf::Color::Magenta); break;
 		}
 
 		if (i == selectedTileIndex)
@@ -432,6 +434,8 @@ void EditorState::handleModeSwitchInput()
 		mode = Mode::ITEMS;
 	if (Utility::isKeyReleased(sf::Keyboard::Key::Num0))
 		mode = Mode::NONE;
+	if (Utility::isKeyReleased(sf::Keyboard::Key::E))
+		isErasing = !isErasing;
 }
 
 void EditorState::handleUndoRedoInput()
@@ -495,8 +499,7 @@ void EditorState::undo()
 	auto action = std::move(undoStack.top());
 	undoStack.pop();
 	action->undo(map);
-	redoStack.push(std::move(action));
-	
+	redoStack.push(std::move(action));	
 }
 
 void EditorState::redo()
@@ -508,62 +511,4 @@ void EditorState::redo()
 	redoStack.pop();
 	action->redo(map);
 	undoStack.push(std::move(action));
-}
-
-void EditorState::handleCameraMoveInput()
-{
-	camera.direction = { 0.f, 0.f }; // Reset direction to zero each frame before checking input
-
-	// Camera movement with arrow keys
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left))
-		camera.direction.x = -1.f;
-	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right))
-		camera.direction.x = 1.f;
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up))
-		camera.direction.y = -1.f;
-	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Down))
-		camera.direction.y = 1.f;
-}
-
-void EditorState::handleCameraPanInput(sf::Vector2f mouseWorldPosition)
-{
-	// Get mouse position in world coordinates relative to the view and convert to tile coordinates
-	///mouseWorldPosition = window.mapPixelToCoords(sf::Mouse::getPosition(window), camera.view);
-	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
-
-	// Camera movement with middle mouse panning
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Middle))
-	{
-		if (!camera.isPanning)
-		{
-			camera.isPanning = true;
-			camera.anchorPoint = mouseWorldPosition;
-		}
-	}
-	else
-	{
-		camera.isPanning = false;
-	}
-}
-
-void EditorState::handleCameraUpdate(float fixedTimeStep)
-{
-	// Update the camera zoom level based on mouse wheel input
-	if (mouseWheelDelta != 0.f)
-	{
-		camera.zoomLevel -= mouseWheelDelta * camera.ZOOM_SPEED * fixedTimeStep;
-		camera.zoomLevel = std::clamp(camera.zoomLevel, camera.ZOOM_MIN, camera.ZOOM_MAX);
-		mouseWheelDelta = 0.f;
-	}
-	// Update the camera position when panning with the middle mouse button
-	if (camera.isPanning)
-	{
-		sf::Vector2f delta = camera.anchorPoint - mouseWorldPosition;
-		camera.view.move(delta * fixedTimeStep * 20.f);
-	}
-	// Update the camera position when moving with the arrow keys
-	else
-	{
-		camera.view.move(camera.direction * camera.MOVE_SPEED * camera.zoomLevel * fixedTimeStep);
-	}
 }

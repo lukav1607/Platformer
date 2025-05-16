@@ -141,16 +141,16 @@ void TileMap::rebuildVisuals()
 
             // Color by tile type
             switch (tile.type) {
-            case Tile::Type::BACKGROUND:
+            case Tile::Type::Background:
 				rect.setFillColor(sf::Color::Yellow);
 				break;
-            case Tile::Type::SOLID:
+            case Tile::Type::Solid:
                 rect.setFillColor(sf::Color::Green);
                 break;
-			case Tile::Type::WATER:
+			case Tile::Type::Water:
 				rect.setFillColor(sf::Color::Blue);
 				break;
-			case Tile::Type::DOOR:
+			case Tile::Type::Door:
 				rect.setFillColor(sf::Color::Magenta);
 				break;
             default:
@@ -169,7 +169,7 @@ void TileMap::resize(int width, int height)
 	rebuildVisuals();
 }
 
-void TileMap::setTile(int x, int y, Tile tile)
+void TileMap::setTile(int x, int y, Tile tile, bool shouldRebuildVisuals)
 {
 	if (x < 0 || x >= static_cast<int>(tiles[0].size()) || y < 0 || y >= static_cast<int>(tiles.size()))
 	{
@@ -177,7 +177,8 @@ void TileMap::setTile(int x, int y, Tile tile)
 		return;
 	}
     tiles[y][x] = tile;
-	rebuildVisuals();
+	if (shouldRebuildVisuals)
+		rebuildVisuals();
 }
 
 bool TileMap::isWithinBounds(int x, int y) const

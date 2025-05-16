@@ -14,9 +14,10 @@
 
 #include <stack>
 #include <SFML/Graphics/View.hpp>
-#include "State.hpp"
-#include "PlayState.hpp"
-#include "../world/TileMap.hpp"
+#include "../State.hpp"
+#include "../game/PlayState.hpp"
+#include "../../world/TileMap.hpp"
+#include "EditorCamera.hpp"
 
 struct Action;
 
@@ -36,9 +37,11 @@ public:
 														  // renders the PlayState from it's render function despite this flag.
 
 private:
-	void handleSaveLoadInput();
 	TileMap& map; // Reference to the tile map being edited
 	PlayState& playState; // Reference to the PlayState for rendering
+	static EditorCamera camera;
+
+	void handleSaveLoadInput();
 
 	void rebuildGridLines();
 	void renderGrid(sf::RenderWindow& window);
@@ -47,6 +50,7 @@ private:
 	bool isGridShown;
 
 	void handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
+
 	void handleSelectionInput(sf::Vector2i tileCoords);
 	void applySelectionAction();
 	void renderSelectionRect(sf::RenderWindow& window) const;
@@ -79,6 +83,7 @@ private:
 		ITEMS
 	};
 	Mode mode;
+	bool isErasing;
 
 	void handleUndoRedoInput();
 	void handleUndoRedoUpdate(float fixedTimeStep);
@@ -91,27 +96,7 @@ private:
 	std::stack<std::unique_ptr<Action>> redoStack;
 
 	//std::vector<std::unique_ptr<Action>> batch;
-
-	void handleCameraMoveInput();
-	void handleCameraPanInput(sf::Vector2f mouseWorldPosition);
-	void handleCameraUpdate(float fixedTimeStep);
-	struct Camera
-	{
-		sf::View view;
-
-		static constexpr float MOVE_SPEED = 500.f;
-		sf::Vector2f direction;
-
-		static constexpr float PAN_SPEED = 1500.f;
-		sf::Vector2f anchorPoint;
-		bool isPanning = false;
-
-		static constexpr float ZOOM_SPEED = 5.f;
-		static constexpr float ZOOM_MIN = 0.5f;
-		static constexpr float ZOOM_MAX = 4.f;
-		float zoomLevel = 1.f;
-	};
-	static Camera camera;
+		
 
 	sf::View uiView;
 

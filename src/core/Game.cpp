@@ -9,7 +9,7 @@
 
 #include <SFML/Graphics.hpp>
 #include "Game.hpp"
-#include "../state/PlayState.hpp"
+#include "../state/game/PlayState.hpp"
 
 Game::Game() :
 	isOutOfFocus(false)

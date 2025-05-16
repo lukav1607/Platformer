@@ -15,10 +15,11 @@ struct Tile
 	enum class Type
 	{
 		EMPTY,
-		BACKGROUND,
-		SOLID,
-		WATER,
-		DOOR
+		Background,
+		Solid,
+		Water,
+		Door,
+		COUNT
 	};
 	Type type;
 };

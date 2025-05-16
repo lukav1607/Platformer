@@ -12,8 +12,8 @@
 
 #pragma once
 
-#include "State.hpp"
-#include "../world/TileMap.hpp"
+#include "../State.hpp"
+#include "../../world/TileMap.hpp"
 
 class PlayState : public State
 {

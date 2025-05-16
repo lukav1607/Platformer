@@ -9,9 +9,9 @@
 
 #include <memory>
 #include "PlayState.hpp"
-#include "StateManager.hpp"
-#include "EditorState.hpp"
-#include "../core/Utility.hpp"
+#include "../StateManager.hpp"
+#include "../editor/EditorState.hpp"
+#include "../../core/Utility.hpp"
 
 PlayState::PlayState(StateManager& stateManager) :
 	State(stateManager),

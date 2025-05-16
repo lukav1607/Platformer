@@ -27,7 +27,9 @@ public:
 	void resize(int width, int height);
 	inline sf::Vector2i getSize() const { return sf::Vector2i(tiles[0].size(), tiles.size()); }
 
-	void setTile(int x, int y, Tile tile);
+	void rebuildVisuals();
+	void setTile(int x, int y, Tile tile, bool shouldRebuildVisuals = true);
+	inline void setTile(sf::Vector2i coords, Tile tile, bool shouldRebuildVisuals = true) { setTile(coords.x, coords.y, tile, shouldRebuildVisuals); }
 	inline const Tile& getTile(int x, int y) const { return tiles[y][x]; }
 	inline const Tile& getTile(sf::Vector2i coords) const { return getTile(coords.x, coords.y); }
 
@@ -37,9 +39,7 @@ public:
 	static constexpr int TILE_SIZE = 64;
 
 private:
-	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
-
-	void rebuildVisuals();
+	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;	
 
 	std::vector<std::vector<Tile>> tiles;
 	std::vector<sf::RectangleShape> visuals;

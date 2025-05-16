@@ -23,7 +23,7 @@ add_executable(
     "src/state/StateManager.cpp"
     "src/state/game/PlayState.cpp"
     "src/state/editor/EditorState.cpp"
-    "src/state/editor/EditorCamera.cpp" "src/state/game/Player.cpp")
+    "src/state/editor/EditorCamera.cpp" "src/state/game/Player.cpp" "src/state/game/GameCamera.cpp")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 # Don't link SFML::Main on non-Windows platforms

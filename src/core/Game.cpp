@@ -19,7 +19,7 @@ Game::Game() :
 	window.create(sf::VideoMode(sf::Vector2u(1200, 800)), PROJECT_NAME, sf::Style::Default, sf::State::Windowed, settings);
 	window.setVerticalSyncEnabled(true);
 
-	stateManager.push(std::make_unique<PlayState>(stateManager));
+	stateManager.push(std::make_unique<PlayState>(stateManager, window));
 }
 
 int Game::run()

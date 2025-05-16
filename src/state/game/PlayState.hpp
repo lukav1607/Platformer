@@ -15,11 +15,12 @@
 #include "../State.hpp"
 #include "../../world/TileMap.hpp"
 #include "Player.hpp"
+#include "GameCamera.hpp"
 
 class PlayState : public State
 {
 public:
-	PlayState(StateManager& stateManager);
+	PlayState(StateManager& stateManager, sf::RenderWindow& window);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -31,4 +32,5 @@ private:
 	TileMap map;
 
 	Player player;
+	GameCamera camera;
 };

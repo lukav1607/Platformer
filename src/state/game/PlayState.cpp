@@ -13,12 +13,11 @@
 #include "../editor/EditorState.hpp"
 #include "../../core/Utility.hpp"
 
-PlayState::PlayState(StateManager& stateManager) :
+PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
 	State(stateManager),
-	map(32, 8)
+	map(32, 8),
+	camera(window)
 {
-	//for (int x = 0; x < 30; ++x)
-	//	map.setTile(x, 19, Tile{ Tile::Type::SOLID });
 }
 
 void PlayState::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)
@@ -33,6 +32,7 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 void PlayState::update(float fixedTimeStep)
 {
 	player.update(fixedTimeStep, map);
+	camera.update(fixedTimeStep, player);
 }
 
 void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
@@ -44,7 +44,5 @@ void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
 void PlayState::applyView(sf::RenderWindow& window)
 {
 	// Temporary
-	sf::View view = window.getDefaultView();
-	view.setSize(sf::Vector2f(window.getSize().x, window.getSize().y));
-	window.setView(view);
+	window.setView(camera.getView());
 }

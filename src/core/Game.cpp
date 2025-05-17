@@ -7,6 +7,7 @@
 // Copyright (c) 2025 Luka Vukorepa
 // ================================================================================================
 
+#include <algorithm>
 #include <SFML/Graphics.hpp>
 #include "Game.hpp"
 #include "../state/game/PlayState.hpp"

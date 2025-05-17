@@ -31,6 +31,8 @@ private:
 
 	const float SMOOTHING_FACTOR = 1.5f;
 	const sf::Vector2f LOOKAHEAD_OFFSET = { 256.f, 0.f };
+	const float MAX_VERTICAL_OFFSET = 128.f;
+	sf::Vector2f verticalOffset;
 	sf::Vector2f lastPlayerPosition;
 	sf::Vector2f velocity;
 };

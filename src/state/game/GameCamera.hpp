@@ -21,7 +21,7 @@ class GameCamera
 public:
 	GameCamera(sf::RenderWindow& window);
 
-	void update(float fixedTimeStep, const Player& player);
+	void preRenderUpdate(float fixedTimeStep, float interpolationFactor, const Player& player);
 
 	const sf::View& getView() const { return view; }
 
@@ -29,8 +29,8 @@ private:
 	sf::RenderWindow& window;
 	sf::View view;
 
-	const float SMOOTHING = 5.f;
-	const sf::Vector2f LOOKAHEAD_OFFSET = { 96.f, 0.f };
+	const float SMOOTHING_FACTOR = 1.5f;
+	const sf::Vector2f LOOKAHEAD_OFFSET = { 256.f, 0.f };
 	sf::Vector2f lastPlayerPosition;
 	sf::Vector2f velocity;
 };

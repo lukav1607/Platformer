@@ -36,7 +36,7 @@ public:
 	bool isWithinBounds(int x, int y) const;
 	inline bool isWithinBounds(sf::Vector2i coords) const { return isWithinBounds(coords.x, coords.y); }
 
-	static constexpr int TILE_SIZE = 32;
+	static constexpr float TILE_SIZE = 64.f;
 
 private:
 	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;	

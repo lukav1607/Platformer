@@ -61,8 +61,8 @@ sf::Vector2i Utility::worldToTileCoords(sf::Vector2f worldPos)
 {
 	return 
 	{
-		   static_cast<int>(worldPos.x) / TileMap::TILE_SIZE,
-		   static_cast<int>(worldPos.y) / TileMap::TILE_SIZE
+		   static_cast<int>(worldPos.x / TileMap::TILE_SIZE),
+		   static_cast<int>(worldPos.y / TileMap::TILE_SIZE)
 	};
 }
 

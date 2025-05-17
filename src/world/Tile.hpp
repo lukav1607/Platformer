@@ -18,8 +18,7 @@ struct Tile
 		Background,
 		Solid,
 		Water,
-		Door,
-		COUNT
+		Door
 	};
 	Type type;
 };

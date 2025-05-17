@@ -24,7 +24,7 @@ private:
 
 	void processInput();
 	void update(float fixedTimeStep);
-	void render(float interpolationFactor);
+	void render(float interpolationFactor, float fixedTimeStep);
 
 	sf::RenderWindow window;
 	StateManager stateManager;

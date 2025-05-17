@@ -84,13 +84,13 @@ void EditorState::update(float fixedTimeStep)
 	mouseWheelDelta = 0.f;
 }
 
-void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
+void EditorState::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
 {
 	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
 
 	// Draw in world
 	window.setView(camera.getView());
-	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
+	playState.render(window, interpolationFactor, fixedTimeStep); // <- Handle rendering the PlayState in the background here to
 	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
 	handleTilePreviewRendering(window, tileCoords);
 	renderGrid(window);	
@@ -379,6 +379,7 @@ void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileC
 				case Tile::Type::Solid: return sf::Color(0, 255, 0, 100);
 				case Tile::Type::Water: return sf::Color(0, 0, 255, 100);
 				case Tile::Type::Door: return sf::Color(255, 0, 255, 100);
+				default: return sf::Color::Transparent;
 				}
 			}());
 		preview.setOutlineColor([&]

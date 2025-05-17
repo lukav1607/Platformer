@@ -21,7 +21,7 @@ public:
 
 	virtual void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) = 0;
 	virtual void update(float fixedTimeStep) = 0;
-	virtual void render(sf::RenderWindow& window, float interpolationFactor) = 0;
+	virtual void render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep) = 0;
 
 	virtual void applyView(sf::RenderWindow& window) = 0;
 

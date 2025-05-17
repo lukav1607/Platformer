@@ -24,20 +24,39 @@ public:
 	void render(sf::RenderWindow& window, float interpolationFactor);
 
 	inline sf::Vector2f getRenderPosition() const { return shape.getPosition(); }
+	sf::Vector2f getInterpolatedRenderPosition(float interpolationFactor) const;
 	inline sf::Vector2f getLogicPosition() const { return currentPosition; }
+	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, size); }
 
 private:
 	void applyPhysics(float fixedTimeStep);
-	void resolveCollisions(const TileMap& tileMap);
+	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
 
 	const float MOVE_SPEED = 200.f;
-	const float JUMP_VELOCITY = -400.f;
-	const float GRAVITY = 980.f;
-	const float MAX_FALL_SPEED = 800.f;
+	const float ACCELERATION = 500.f;
+	const float DECELERATION = 1500.f;
 
-	sf::RectangleShape shape;
+	const float JUMP_VELOCITY = -750.f;
+	const float GRAVITY = 1500.f;
+
+	const float GRAVITY_JUMP_CUT_MULT = 3.0f; // Applied when player releases jump early
+	const float GRAVITY_FALL_MULT = 1.15f;     // Applied when falling normally
+	const float MAX_FALL_SPEED = 500.f;
+
+	const float JUMP_BUFFER_TIME = 0.1f;
+	const float COYOTE_TIME = 0.075f;
+
 	sf::Vector2f currentPosition;
 	sf::Vector2f previousPosition;
 	sf::Vector2f velocity;
-	bool onGround;
+	sf::Vector2f direction;
+	float currentSpeed;
+	bool isOnGround;
+	float jumpBufferTimer;
+	float coyoteTimer;
+	bool jumpKeyPressed;
+	bool jumpKeyHeld;
+
+	sf::RectangleShape shape;
+	sf::Vector2f size;
 };

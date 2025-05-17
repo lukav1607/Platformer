@@ -28,8 +28,8 @@ public:
 	inline sf::Vector2f getRenderPosition() const { return shape.getPosition(); }
 	sf::Vector2f getInterpolatedRenderPosition(float interpolationFactor) const;
 	inline sf::Vector2f getLogicPosition() const { return currentPosition; }
-	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, size); }
-	inline sf::Vector2f getSize() const { return size; }
+	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, currentSize); }
+	inline sf::Vector2f getSize() const { return currentSize; }
 	inline sf::Color getColor() const { return color; }
 	inline bool isLookingUp() const { return m_isLookingUp; }
 	inline bool isLookingDown() const { return m_isLookingDown; }
@@ -63,10 +63,18 @@ private:
 	bool jumpKeyPressed;
 	bool jumpKeyHeld;
 
+	const float HEIGHT_WHEN_STANDING = 88.f;
+	const float HEIGHT_WHEN_CROUCHING = 60.f;
+	const float CROUCHED_SPEED_MULTIPLIER = 0.35f;
+	bool isCrouching;
+	bool isCollidingUp;
+	sf::FloatRect futureBounds;
+
 	bool m_isLookingUp;
 	bool m_isLookingDown;
 
 	sf::RectangleShape shape;
 	sf::Color color;
-	sf::Vector2f size;
+	sf::Vector2f currentSize;
+	sf::Vector2f previousSize;
 };

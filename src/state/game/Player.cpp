@@ -21,12 +21,15 @@ Player::Player() :
 	coyoteTimer(0.f),
 	jumpKeyPressed(false),
 	jumpKeyHeld(false),
+	isCrouching(false),
+	isCollidingUp(false),
 	color(sf::Color(255, 200, 100)),
-	size({ 56.f, 88.f }),
+	currentSize({ 56.f, HEIGHT_WHEN_STANDING }),
+	previousSize({ 56.f, HEIGHT_WHEN_STANDING }),
 	m_isLookingDown(false),
 	m_isLookingUp(false)
 {
-	shape.setSize(size);
+	shape.setSize(currentSize);
 	shape.setFillColor(color);
 	//shape.setOrigin(shape.getSize() / 2.f);
 	shape.setPosition({ 100.f, 100.f });
@@ -63,6 +66,11 @@ void Player::processInput(const sf::RenderWindow& window, const std::vector<sf::
 		m_isLookingUp = false;
 		m_isLookingDown = false;
 	}
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl))
+		isCrouching = true;
+	else
+		isCrouching = false;
 }
 
 void Player::update(float fixedTimeStep, const TileMap& tileMap)
@@ -73,16 +81,23 @@ void Player::update(float fixedTimeStep, const TileMap& tileMap)
 
 void Player::render(sf::RenderWindow& window, float interpolationFactor)
 {
-	sf::Vector2f interpolated = Utility::interpolate(previousPosition, currentPosition, interpolationFactor);
-	shape.setPosition(interpolated);
+	shape.setPosition(Utility::interpolate(previousPosition, currentPosition, interpolationFactor));
+	shape.setSize(Utility::interpolate(previousSize, currentSize, interpolationFactor));
 	window.draw(shape);
+
+	sf::RectangleShape futureShape(futureBounds.size);
+	futureShape.setPosition(futureBounds.position);
+	futureShape.setFillColor(sf::Color::Transparent);
+	futureShape.setOutlineThickness(1.f);
+	futureShape.setOutlineColor(sf::Color::Magenta);
+	window.draw(futureShape);
 }
 
 void Player::setPosition(sf::Vector2i tileCoords)
 {
 	currentPosition = { 
-		tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - size.x / 2.f),
-		tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - size.y)};
+		tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - currentSize.x / 2.f),
+		tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - currentSize.y)};
 	previousPosition = currentPosition;
 	shape.setPosition(currentPosition);
 	velocity = { 0.f, 0.f };
@@ -102,6 +117,23 @@ void Player::applyPhysics(float fixedTimeStep)
 {
 	static float lastDirection = 0.f;
 
+	previousSize = currentSize;
+	if (!isCollidingUp)
+	{
+		if (isOnGround && isCrouching)
+		{
+			currentSize.y -= 250.f * fixedTimeStep;
+			if (currentSize.y < HEIGHT_WHEN_CROUCHING)
+				currentSize.y = HEIGHT_WHEN_CROUCHING;
+		}
+		else
+		{
+			currentSize.y += 250.f * fixedTimeStep;
+			if (currentSize.y > HEIGHT_WHEN_STANDING)
+				currentSize.y = HEIGHT_WHEN_STANDING;
+		}
+	}
+
 	if (direction.x != 0.f)
 	{
 		lastDirection = direction.x;
@@ -113,7 +145,7 @@ void Player::applyPhysics(float fixedTimeStep)
 		}
 
 		currentSpeed += ACCELERATION * fixedTimeStep;
-		currentSpeed = std::clamp(currentSpeed, 0.f, MOVE_SPEED);
+		currentSpeed = std::clamp(currentSpeed, 0.f, isCrouching ? MOVE_SPEED * CROUCHED_SPEED_MULTIPLIER : MOVE_SPEED);
 		velocity.x = currentSpeed * direction.x;
 	}
 	else
@@ -165,12 +197,13 @@ void Player::applyPhysics(float fixedTimeStep)
 void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 {
 	isOnGround = false;
+	isCollidingUp = false;
 
 	sf::Vector2f futurePosition = currentPosition + velocity * fixedTimeStep;
-	sf::FloatRect futureBounds = { futurePosition, size };
+	/*sf::FloatRect */futureBounds = { futurePosition, currentSize };
 
 	sf::Vector2f verticalFuturePos = { currentPosition.x, currentPosition.y + velocity.y * fixedTimeStep };
-	sf::FloatRect verticalBounds(verticalFuturePos, size);
+	sf::FloatRect verticalBounds(verticalFuturePos, currentSize);
 
 	for (int x = (int)(verticalBounds.position.x) / TileMap::TILE_SIZE - 1;
 		x <= (int)(verticalBounds.position.x + verticalBounds.size.x) / TileMap::TILE_SIZE + 1;
@@ -203,6 +236,8 @@ void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 				else if (velocity.y < 0.f)
 				{
 					verticalFuturePos.y += intersection.value().size.y;
+					isCollidingUp = true;
+					std::cout << "Colliding up!" << std::endl;
 				}
 				velocity.y = 0.f;
 				verticalBounds.position.y = verticalFuturePos.y;
@@ -212,7 +247,7 @@ void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 	futurePosition.y = verticalFuturePos.y;
 
 	sf::Vector2f horizontalFuturePos = { futurePosition.x + velocity.x * fixedTimeStep, futurePosition.y };
-	sf::FloatRect horizontalBounds(horizontalFuturePos, size);
+	sf::FloatRect horizontalBounds(horizontalFuturePos, currentSize);
 
 	for (int x = (int)(horizontalBounds.position.x) / TileMap::TILE_SIZE - 1;
 		x <= (int)(horizontalBounds.position.x + horizontalBounds.size.x) / TileMap::TILE_SIZE + 1;

@@ -80,7 +80,7 @@ void Game::update(float fixedTimeStep)
 
 void Game::render(float interpolationFactor, float fixedTimeStep)
 {
-	window.clear();
+	window.clear(sf::Color(30, 25, 60));
 
 	stateManager.top()->applyView(window);
 	stateManager.render(window, interpolationFactor, fixedTimeStep);

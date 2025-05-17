@@ -15,10 +15,9 @@
 
 PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
 	State(stateManager),
-	map(32, 8),
+	map(48, 32),
 	camera(window)
 {
-	// Load map from JSON file
 	map.loadFromJson("assets/maps/test_map.json");
 }
 
@@ -34,14 +33,17 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 void PlayState::update(float fixedTimeStep)
 {
 	player.update(fixedTimeStep, map);
-	//camera.update(fixedTimeStep, player);
 }
 
 void PlayState::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
 {
+	camera.updateVerticalLook(fixedTimeStep, player.isLookingUp(), player.isLookingDown());
 	camera.preRenderUpdate(fixedTimeStep, interpolationFactor, player);
+	map.drawTransparentOnly = false;
 	window.draw(map);
 	player.render(window, interpolationFactor);
+	map.drawTransparentOnly = true;
+	window.draw(map);
 }
 
 void PlayState::applyView(sf::RenderWindow& window)

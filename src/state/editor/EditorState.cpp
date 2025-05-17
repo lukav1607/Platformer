@@ -87,6 +87,7 @@ void EditorState::update(float fixedTimeStep)
 void EditorState::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
 {
 	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
+	camera.preRenderUpdate(fixedTimeStep, interpolationFactor, mouseWorldPosition);
 
 	// Draw in world
 	window.setView(camera.getView());
@@ -198,7 +199,7 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 		map.isWithinBounds(tileCoords))
 	{
 		Tile::Type oldType = map.getTile(tileCoords).type;
-		Tile::Type newType = isLeftClickHeld ? palette.at(selectedTileIndex) : Tile::Type::EMPTY;
+		Tile::Type newType = isLeftClickHeld && !isErasing ? palette.at(selectedTileIndex) : Tile::Type::EMPTY;
 
 		if (oldType != newType)
 		{
@@ -234,16 +235,13 @@ void EditorState::handleSelectionInput(sf::Vector2i tileCoords)
 			isDrawingSelection = true;
 			selectionStart = tileCoords;
 			selectionAction = SelectionAction::PLACE;
-		}
-		else if (isShiftHeld && isRightClickHeld)
-		{
-			isDrawingSelection = true;
-			selectionStart = tileCoords;
-
-			if (isCtrlHeld)
-				selectionAction = SelectionAction::ERASE_ALL;
-			else
-				selectionAction = SelectionAction::ERASE_SPECIFIC;
+			if (isErasing)
+			{
+				if (isCtrlHeld)
+					selectionAction = SelectionAction::ERASE_ALL;
+				else
+					selectionAction = SelectionAction::ERASE_SPECIFIC;
+			}
 		}
 	}
 
@@ -336,8 +334,22 @@ void EditorState::renderSelectionRect(sf::RenderWindow& window) const
 	sf::RectangleShape outline(size);
 	outline.setPosition(topLeft);
 	outline.setFillColor(sf::Color::Transparent);
-	outline.setOutlineColor(sf::Color::White);
 	outline.setOutlineThickness(2.f);
+
+	if (!isErasing)
+		outline.setOutlineColor(sf::Color::White);
+	else
+	{
+		outline.setOutlineColor(sf::Color::Red);
+		sf::VertexArray crossedLines(sf::PrimitiveType::Lines, 4);
+		crossedLines[0].position = { topLeft.x, topLeft.y };
+		crossedLines[1].position = { bottomRight.x + TileMap::TILE_SIZE, bottomRight.y + TileMap::TILE_SIZE};
+		crossedLines[2].position = { bottomRight.x + TileMap::TILE_SIZE, topLeft.y };
+		crossedLines[3].position = { topLeft.x, bottomRight.y + TileMap::TILE_SIZE};
+		for (int i = 0; i < crossedLines.getVertexCount(); ++i)
+			crossedLines[i].color = sf::Color::Red;
+		window.draw(crossedLines);
+	}
 	window.draw(outline);
 }
 
@@ -365,7 +377,7 @@ void EditorState::handleTilePreviewRendering(sf::RenderWindow& window, sf::Vecto
 
 void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
-	if (map.isWithinBounds(tileCoords) && map.getTile(tileCoords).type != palette.at(selectedTileIndex))
+	if (map.isWithinBounds(tileCoords) && (map.getTile(tileCoords).type != palette.at(selectedTileIndex) || isErasing))
 	{
 		sf::RectangleShape preview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
 		preview.setPosition({ static_cast<float>(tileCoords.x * TileMap::TILE_SIZE), static_cast<float>(tileCoords.y * TileMap::TILE_SIZE) });
@@ -389,6 +401,17 @@ void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileC
 				return sf::Color::Transparent;
 			}());
 		preview.setOutlineThickness(2.f);
+		if (isErasing)
+		{
+			sf::VertexArray crossedLines(sf::PrimitiveType::Lines, 4);
+			crossedLines[0].position = { tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE };
+			crossedLines[1].position = { tileCoords.x * TileMap::TILE_SIZE + TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE + TileMap::TILE_SIZE };
+			crossedLines[2].position = { tileCoords.x * TileMap::TILE_SIZE + TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE };
+			crossedLines[3].position = { tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE + TileMap::TILE_SIZE };
+			for (int i = 0; i < crossedLines.getVertexCount(); ++i)
+				crossedLines[i].color = sf::Color::Red;
+			window.draw(crossedLines);
+		}
 		window.draw(preview);
 	}
 }

@@ -27,6 +27,8 @@ public:
 	sf::Vector2f getInterpolatedRenderPosition(float interpolationFactor) const;
 	inline sf::Vector2f getLogicPosition() const { return currentPosition; }
 	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, size); }
+	inline bool isLookingUp() const { return m_isLookingUp; }
+	inline bool isLookingDown() const { return m_isLookingDown; }
 
 private:
 	void applyPhysics(float fixedTimeStep);
@@ -56,6 +58,9 @@ private:
 	float coyoteTimer;
 	bool jumpKeyPressed;
 	bool jumpKeyHeld;
+
+	bool m_isLookingUp;
+	bool m_isLookingDown;
 
 	sf::RectangleShape shape;
 	sf::Vector2f size;

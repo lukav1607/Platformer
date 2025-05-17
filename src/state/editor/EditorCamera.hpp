@@ -18,6 +18,7 @@ class EditorCamera
 public:
 	void handleInput(sf::Vector2f mouseWorldPosition);
 	void update(float fixedTimeStep, float mouseWheelDelta, sf::Vector2f mouseWorldPosition);
+	void preRenderUpdate(float fixedTimeStep, float interpolationFactor, sf::Vector2f mouseWorldPosition);
 
 	void resize(sf::Vector2u windowSize);
 

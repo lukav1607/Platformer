@@ -142,16 +142,16 @@ void TileMap::rebuildVisuals()
             // Color by tile type
             switch (tile.type) {
             case Tile::Type::Background:
-				rect.setFillColor(sf::Color::Yellow);
+				rect.setFillColor(sf::Color(50, 40, 75));
 				break;
             case Tile::Type::Solid:
-                rect.setFillColor(sf::Color::Green);
+                rect.setFillColor(sf::Color(90, 75, 110));
                 break;
 			case Tile::Type::Water:
-				rect.setFillColor(sf::Color::Blue);
+				rect.setFillColor(sf::Color(30, 100, 150, 180));
 				break;
 			case Tile::Type::Door:
-				rect.setFillColor(sf::Color::Magenta);
+				rect.setFillColor(sf::Color(200, 180, 255));
 				break;
             default:
                 rect.setFillColor(sf::Color::Transparent);
@@ -189,6 +189,13 @@ bool TileMap::isWithinBounds(int x, int y) const
 void TileMap::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
     states.transform *= getTransform();
-    for (const auto& rect : visuals)
-        target.draw(rect, states);
+	for (const auto& rect : visuals)
+	{
+		if (drawTransparentOnly && rect.getFillColor().a == 255)
+			continue;
+		if (!drawTransparentOnly && rect.getFillColor().a != 255)
+			continue;
+
+		target.draw(rect, states);
+	}
 }

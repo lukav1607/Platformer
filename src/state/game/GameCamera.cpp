@@ -36,12 +36,26 @@ void GameCamera::preRenderUpdate(float fixedTimeStep, float interpolationFactor,
 	
 	lastPlayerPosition = targetPosition;
 
-	sf::Vector2f desiredPosition = targetPosition + currentLookahead;
+	sf::Vector2f desiredPosition = targetPosition + currentLookahead + verticalOffset;
 	sf::Vector2f currentPosition = view.getCenter();
 	sf::Vector2f positionDifference = desiredPosition - currentPosition;
 
-	view.setCenter(currentPosition + positionDifference * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep)));
+	//view.setCenter(player.getInterpolatedRenderPosition(interpolationFactor));
+	view.setCenter(
+		sf::Vector2f(currentPosition.x + positionDifference.x * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep)),
+		currentPosition.y + positionDifference.y * (1.f - std::exp(-SMOOTHING_FACTOR * 10.f * fixedTimeStep))));
 	view.setSize(sf::Vector2f(window.getSize().x, window.getSize().y));
+}
+
+void GameCamera::updateVerticalLook(float fixedTimeStep, bool isLookingUp, bool isLookingDown)
+{
+	float targetY = 0.f;
+	if (isLookingUp)
+		targetY = -MAX_VERTICAL_OFFSET;
+	else if (isLookingDown)
+		targetY = MAX_VERTICAL_OFFSET;
+
+	verticalOffset.y += (targetY - verticalOffset.y) * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep));
 }
 
 // ---------------------------------------- //

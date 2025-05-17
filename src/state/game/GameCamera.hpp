@@ -21,6 +21,7 @@ class GameCamera
 public:
 	GameCamera(sf::RenderWindow& window);
 
+	void updateVerticalLook(float fixedTimeStep, bool isLookingUp, bool isLookingDown);
 	void preRenderUpdate(float fixedTimeStep, float interpolationFactor, const Player& player);
 
 	const sf::View& getView() const { return view; }
@@ -29,9 +30,9 @@ private:
 	sf::RenderWindow& window;
 	sf::View view;
 
-	const float SMOOTHING_FACTOR = 1.5f;
+	const float SMOOTHING_FACTOR = 1.05f;
 	const sf::Vector2f LOOKAHEAD_OFFSET = { 256.f, 0.f };
-	const float MAX_VERTICAL_OFFSET = 128.f;
+	const float MAX_VERTICAL_OFFSET = 192.f;
 	sf::Vector2f verticalOffset;
 	sf::Vector2f lastPlayerPosition;
 	sf::Vector2f velocity;

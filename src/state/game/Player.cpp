@@ -21,10 +21,12 @@ Player::Player() :
 	coyoteTimer(0.f),
 	jumpKeyPressed(false),
 	jumpKeyHeld(false),
-	size({ 56.f, 88.f })
+	size({ 56.f, 88.f }),
+	m_isLookingDown(false),
+	m_isLookingUp(false)
 {
 	shape.setSize(size);
-	shape.setFillColor(sf::Color::Cyan);
+	shape.setFillColor(sf::Color(255, 200, 100));
 	//shape.setOrigin(shape.getSize() / 2.f);
 	shape.setPosition({ 100.f, 100.f });
 }
@@ -42,8 +44,24 @@ void Player::processInput(const sf::RenderWindow& window, const std::vector<sf::
 
 	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A))
 		direction.x = -1.f;
-	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D))
+	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D))
 		direction.x = 1.f;
+
+	if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W))
+	{
+		m_isLookingUp = true;
+		m_isLookingDown = false;
+	}
+	else if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S))
+	{
+		m_isLookingDown = true;
+		m_isLookingUp = false;
+	}
+	else
+	{
+		m_isLookingUp = false;
+		m_isLookingDown = false;
+	}
 }
 
 void Player::update(float fixedTimeStep, const TileMap& tileMap)

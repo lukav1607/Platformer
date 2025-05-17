@@ -31,6 +31,20 @@ void EditorCamera::update(float fixedTimeStep, float mouseWheelDelta, sf::Vector
 		zoomLevel = std::clamp(zoomLevel, ZOOM_MIN, ZOOM_MAX);
 	}
 	// Update the camera position when panning with the middle mouse button
+	//if (isPanning)
+	//{
+	//	sf::Vector2f delta = anchorPoint - mouseWorldPosition;
+	//	view.move(delta * fixedTimeStep * PAN_SPEED);
+	//}
+	//// Update the camera position when moving with the arrow keys
+	//else
+	//{
+	//	view.move(direction * MOVE_SPEED * zoomLevel * fixedTimeStep);
+	//}
+}
+
+void EditorCamera::preRenderUpdate(float fixedTimeStep, float interpolationFactor, sf::Vector2f mouseWorldPosition)
+{
 	if (isPanning)
 	{
 		sf::Vector2f delta = anchorPoint - mouseWorldPosition;

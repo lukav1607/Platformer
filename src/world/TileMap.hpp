@@ -37,9 +37,10 @@ public:
 	inline bool isWithinBounds(sf::Vector2i coords) const { return isWithinBounds(coords.x, coords.y); }
 
 	static constexpr float TILE_SIZE = 64.f;
+	bool drawTransparentOnly = false;
 
 private:
-	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;	
+	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
 
 	std::vector<std::vector<Tile>> tiles;
 	std::vector<sf::RectangleShape> visuals;

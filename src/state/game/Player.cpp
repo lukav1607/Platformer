@@ -21,12 +21,13 @@ Player::Player() :
 	coyoteTimer(0.f),
 	jumpKeyPressed(false),
 	jumpKeyHeld(false),
+	color(sf::Color(255, 200, 100)),
 	size({ 56.f, 88.f }),
 	m_isLookingDown(false),
 	m_isLookingUp(false)
 {
 	shape.setSize(size);
-	shape.setFillColor(sf::Color(255, 200, 100));
+	shape.setFillColor(color);
 	//shape.setOrigin(shape.getSize() / 2.f);
 	shape.setPosition({ 100.f, 100.f });
 }
@@ -75,6 +76,21 @@ void Player::render(sf::RenderWindow& window, float interpolationFactor)
 	sf::Vector2f interpolated = Utility::interpolate(previousPosition, currentPosition, interpolationFactor);
 	shape.setPosition(interpolated);
 	window.draw(shape);
+}
+
+void Player::setPosition(sf::Vector2i tileCoords)
+{
+	currentPosition = { 
+		tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - size.x / 2.f),
+		tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - size.y)};
+	previousPosition = currentPosition;
+	shape.setPosition(currentPosition);
+	velocity = { 0.f, 0.f };
+	jumpBufferTimer = 0.f;
+	coyoteTimer = 0.f;
+	isOnGround = false;
+	jumpKeyPressed = false;
+	jumpKeyHeld = false;
 }
 
 sf::Vector2f Player::getInterpolatedRenderPosition(float interpolationFactor) const

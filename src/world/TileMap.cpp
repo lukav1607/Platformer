@@ -138,26 +138,7 @@ void TileMap::rebuildVisuals()
 
             sf::RectangleShape rect(sf::Vector2f(TILE_SIZE, TILE_SIZE));
             rect.setPosition({ static_cast<float>(x * TILE_SIZE), static_cast<float>(y * TILE_SIZE) });
-
-            // Color by tile type
-            switch (tile.type) {
-            case Tile::Type::Background:
-				rect.setFillColor(sf::Color(50, 40, 75));
-				break;
-            case Tile::Type::Solid:
-                rect.setFillColor(sf::Color(90, 75, 110));
-                break;
-			case Tile::Type::Water:
-				rect.setFillColor(sf::Color(30, 100, 150, 180));
-				break;
-			case Tile::Type::Door:
-				rect.setFillColor(sf::Color(200, 180, 255));
-				break;
-            default:
-                rect.setFillColor(sf::Color::Transparent);
-                break;
-            }
-
+			rect.setFillColor(getTileColor(tile.type));
             visuals.push_back(rect);
         }
     }
@@ -179,6 +160,23 @@ void TileMap::setTile(int x, int y, Tile tile, bool shouldRebuildVisuals)
     tiles[y][x] = tile;
 	if (shouldRebuildVisuals)
 		rebuildVisuals();
+}
+
+const sf::Color& TileMap::getTileColor(Tile::Type type) const
+{
+	switch (type)
+	{
+	case Tile::Type::Background:
+		return sf::Color(50, 40, 75);
+	case Tile::Type::Solid:
+		return sf::Color(90, 75, 110);
+	case Tile::Type::Water:
+		return sf::Color(30, 100, 150, 180);
+	case Tile::Type::Door:
+		return sf::Color(200, 180, 255);
+	default:
+		return sf::Color::Transparent;
+	}
 }
 
 bool TileMap::isWithinBounds(int x, int y) const

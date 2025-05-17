@@ -25,7 +25,7 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 {
 	// Enter editor state
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
-		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map));
+		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player));
 
 	player.processInput(window, events);
 }

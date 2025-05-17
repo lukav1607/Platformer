@@ -15,10 +15,11 @@
 
 EditorCamera EditorState::camera;
 
-EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map) :
+EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player) :
 	State(stateManager),
 	playState(playState),
 	map(map),
+	player(player),
 	palette{
 		Tile::Type::Background,
 		Tile::Type::Solid,
@@ -66,7 +67,9 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 		handleSelectionInput(tileCoords);
 		handleTileInput(sf::Mouse::getPosition(window), tileCoords);
 		break;
-
+	case Mode::PLAYER:
+		handlePlayerPlacement(tileCoords);
+		break;
 	default:
 		break;
 	}
@@ -94,6 +97,7 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor, fl
 	playState.render(window, interpolationFactor, fixedTimeStep); // <- Handle rendering the PlayState in the background here to
 	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
 	handleTilePreviewRendering(window, tileCoords);
+	renderPlayerPreview(window, tileCoords);
 	renderGrid(window);	
 
 	// Draw as overlay/UI
@@ -131,6 +135,51 @@ void EditorState::handleSaveLoadInput()
 			rebuildGridLines();
 			std::cout << "Map loaded successfully!" << std::endl;
 		}
+	}
+}
+
+void EditorState::handlePlayerPlacement(sf::Vector2i tileCoords)
+{
+	if (!map.isWithinBounds(tileCoords) ||
+		!map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+		return;
+
+	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
+
+	if (isLeftClickReleased &&
+		map.getTile(tileCoords).type != Tile::Type::Solid &&
+		map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type != Tile::Type::Solid)
+	{
+		player.setPosition(tileCoords);
+		//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		
+	}
+	//if (!batch.empty() && (isLeftClickReleased || isRightClickReleased))
+	//{
+	//	// Push the batch of actions to the undo stack and clear the redo stack
+	//	undoStack.push(std::make_unique<BatchAction>(std::move(batch)));
+	//	redoStack = std::stack<std::unique_ptr<Action>>();
+	//}
+}
+
+void EditorState::renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
+{
+	if (mode != Mode::PLAYER)
+		return;
+
+	if (!map.isWithinBounds(tileCoords) ||
+		!map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+		return;
+
+	if (map.getTile(tileCoords).type != Tile::Type::Solid &&
+		map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type != Tile::Type::Solid)
+	{
+		sf::RectangleShape playerPreview(player.getSize());
+		playerPreview.setPosition({
+			tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+			tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
+		playerPreview.setFillColor(sf::Color(player.getColor().r, player.getColor().g, player.getColor().b, 128));
+		window.draw(playerPreview);
 	}
 }
 
@@ -223,6 +272,9 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 
 void EditorState::handleSelectionInput(sf::Vector2i tileCoords)
 {
+	if (mode == Mode::PLAYER ||	mode == Mode::ENEMIES || mode == Mode::ITEMS)
+		return;
+
 	bool isLeftClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
 	bool isRightClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Right);
 	bool isCtrlHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl);
@@ -377,6 +429,9 @@ void EditorState::handleTilePreviewRendering(sf::RenderWindow& window, sf::Vecto
 
 void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
+	if (mode != Mode::TILES)
+		return;
+
 	if (map.isWithinBounds(tileCoords) && (map.getTile(tileCoords).type != palette.at(selectedTileIndex) || isErasing))
 	{
 		sf::RectangleShape preview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
@@ -384,15 +439,10 @@ void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileC
 		preview.setFillColor([&]
 			{
 				if (isErasing)
-					return sf::Color::Transparent;
-				switch (palette.at(selectedTileIndex))
-				{
-				case Tile::Type::Background: return sf::Color(255, 255, 0, 100);
-				case Tile::Type::Solid: return sf::Color(0, 255, 0, 100);
-				case Tile::Type::Water: return sf::Color(0, 0, 255, 100);
-				case Tile::Type::Door: return sf::Color(255, 0, 255, 100);
-				default: return sf::Color::Transparent;
-				}
+					return sf::Color(255, 0, 0, 30);
+				sf::Color color = map.getTileColor(palette.at(selectedTileIndex));
+				color.a = 128;
+				return color;
 			}());
 		preview.setOutlineColor([&]
 			{
@@ -418,18 +468,14 @@ void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileC
 
 void EditorState::renderTilePalette(sf::RenderWindow& window)
 {
+	if (mode != Mode::TILES)
+		return;
+
 	for (size_t i = 0; i < palette.size(); ++i)
 	{
 		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
 		shape.setPosition({ 10.f + i * 60.f, 10.f });
-
-		switch (palette.at(i))
-		{
-		case Tile::Type::Background: shape.setFillColor(sf::Color::Yellow); break;
-		case Tile::Type::Solid: shape.setFillColor(sf::Color::Green); break;
-		case Tile::Type::Water: shape.setFillColor(sf::Color::Blue); break;
-		case Tile::Type::Door: shape.setFillColor(sf::Color::Magenta); break;
-		}
+		shape.setFillColor(map.getTileColor(palette.at(i)));
 
 		if (i == selectedTileIndex)
 		{
@@ -448,16 +494,13 @@ void EditorState::handleTogglesInput()
 
 void EditorState::handleModeSwitchInput()
 {
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num1))
-		mode = Mode::TILES;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num2))
-		mode = Mode::OBJECTS;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num3))
-		mode = Mode::ENEMIES;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num4))
-		mode = Mode::ITEMS;
-	if (Utility::isKeyReleased(sf::Keyboard::Key::Num0))
-		mode = Mode::NONE;
+	if (Utility::isKeyReleased(sf::Keyboard::Key::M))
+	{
+		mode = static_cast<Mode>(static_cast<int>(mode) + 1);
+		if (mode == Mode::COUNT)
+			mode = Mode::TILES;
+	}
+
 	if (Utility::isKeyReleased(sf::Keyboard::Key::E))
 		isErasing = !isErasing;
 }

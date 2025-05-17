@@ -24,7 +24,7 @@ struct Action;
 class EditorState : public State
 {
 public:
-	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map);
+	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -37,11 +37,15 @@ public:
 														  // renders the PlayState from it's render function despite this flag.
 
 private:
-	TileMap& map; // Reference to the tile map being edited
-	PlayState& playState; // Reference to the PlayState for rendering
+	TileMap& map;
+	PlayState& playState;
+	Player& player;
 	static EditorCamera camera;
 
 	void handleSaveLoadInput();
+
+	void handlePlayerPlacement(sf::Vector2i tileCoords);
+	void renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 
 	void rebuildGridLines();
 	void renderGrid(sf::RenderWindow& window);
@@ -76,11 +80,13 @@ private:
 	void handleModeSwitchInput();
 	enum class Mode
 	{
-		NONE,
+		//NONE,
 		TILES,
 		OBJECTS,
+		PLAYER,
 		ENEMIES,
-		ITEMS
+		ITEMS,
+		COUNT
 	};
 	Mode mode;
 	bool isErasing;

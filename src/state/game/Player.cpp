@@ -22,7 +22,6 @@ Player::Player() :
 	jumpKeyPressed(false),
 	jumpKeyHeld(false),
 	isCrouching(false),
-	isCollidingUp(false),
 	color(sf::Color(255, 200, 100)),
 	currentSize({ 56.f, HEIGHT_WHEN_STANDING }),
 	previousSize({ 56.f, HEIGHT_WHEN_STANDING }),
@@ -75,7 +74,7 @@ void Player::processInput(const sf::RenderWindow& window, const std::vector<sf::
 
 void Player::update(float fixedTimeStep, const TileMap& tileMap)
 {
-	applyPhysics(fixedTimeStep);
+	applyPhysics(fixedTimeStep, tileMap);
 	resolveCollisions(fixedTimeStep, tileMap);
 }
 
@@ -85,12 +84,12 @@ void Player::render(sf::RenderWindow& window, float interpolationFactor)
 	shape.setSize(Utility::interpolate(previousSize, currentSize, interpolationFactor));
 	window.draw(shape);
 
-	sf::RectangleShape futureShape(futureBounds.size);
+	/*sf::RectangleShape futureShape(futureBounds.size);
 	futureShape.setPosition(futureBounds.position);
 	futureShape.setFillColor(sf::Color::Transparent);
 	futureShape.setOutlineThickness(1.f);
 	futureShape.setOutlineColor(sf::Color::Magenta);
-	window.draw(futureShape);
+	window.draw(futureShape);*/
 }
 
 void Player::setPosition(sf::Vector2i tileCoords)
@@ -113,20 +112,20 @@ sf::Vector2f Player::getInterpolatedRenderPosition(float interpolationFactor) co
 	return Utility::interpolate(previousPosition, currentPosition, interpolationFactor);
 }
 
-void Player::applyPhysics(float fixedTimeStep)
+void Player::applyPhysics(float fixedTimeStep, const TileMap& tileMap)
 {
 	static float lastDirection = 0.f;
 
 	previousSize = currentSize;
-	if (!isCollidingUp)
+	if (isOnGround && isCrouching)
 	{
-		if (isOnGround && isCrouching)
-		{
-			currentSize.y -= 250.f * fixedTimeStep;
-			if (currentSize.y < HEIGHT_WHEN_CROUCHING)
-				currentSize.y = HEIGHT_WHEN_CROUCHING;
-		}
-		else
+		currentSize.y -= 250.f * fixedTimeStep;
+		if (currentSize.y < HEIGHT_WHEN_CROUCHING)
+			currentSize.y = HEIGHT_WHEN_CROUCHING;
+	}
+	else if (isOnGround && !isCrouching)
+	{
+		if (canStandUp(tileMap)) // Only grow if headspace is clear
 		{
 			currentSize.y += 250.f * fixedTimeStep;
 			if (currentSize.y > HEIGHT_WHEN_STANDING)
@@ -145,7 +144,7 @@ void Player::applyPhysics(float fixedTimeStep)
 		}
 
 		currentSpeed += ACCELERATION * fixedTimeStep;
-		currentSpeed = std::clamp(currentSpeed, 0.f, isCrouching ? MOVE_SPEED * CROUCHED_SPEED_MULTIPLIER : MOVE_SPEED);
+		currentSpeed = std::clamp(currentSpeed, 0.f, isCrouching && isOnGround ? MOVE_SPEED * CROUCHED_SPEED_MULTIPLIER : MOVE_SPEED);
 		velocity.x = currentSpeed * direction.x;
 	}
 	else
@@ -171,11 +170,9 @@ void Player::applyPhysics(float fixedTimeStep)
 	}
 	jumpBufferTimer = std::max(0.f, jumpBufferTimer -= fixedTimeStep); // Clamp to 0
 
-	//jumpBufferTimer = std::max(jumpBufferTimer, 0.f); // Clamp to 0
-
 	if (jumpBufferTimer > 0.f && (isOnGround || coyoteTimer > 0.f))
 	{
-		velocity.y = JUMP_VELOCITY;
+		velocity.y = isCrouching && isOnGround ? JUMP_VELOCITY * CROUCHED_JUMP_MULTIPLIER : JUMP_VELOCITY;
 		isOnGround = false;
 		coyoteTimer = 0.f;
 		jumpBufferTimer = 0.f;
@@ -197,7 +194,6 @@ void Player::applyPhysics(float fixedTimeStep)
 void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 {
 	isOnGround = false;
-	isCollidingUp = false;
 
 	sf::Vector2f futurePosition = currentPosition + velocity * fixedTimeStep;
 	/*sf::FloatRect */futureBounds = { futurePosition, currentSize };
@@ -236,8 +232,6 @@ void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 				else if (velocity.y < 0.f)
 				{
 					verticalFuturePos.y += intersection.value().size.y;
-					isCollidingUp = true;
-					std::cout << "Colliding up!" << std::endl;
 				}
 				velocity.y = 0.f;
 				verticalBounds.position.y = verticalFuturePos.y;
@@ -289,4 +283,47 @@ void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 
 	previousPosition = currentPosition;
 	currentPosition = futurePosition;
+}
+
+bool Player::canStandUp(const TileMap& tileMap) const
+{
+	// Check the space *above* the current position up to HEIGHT_WHEN_STANDING
+	if (currentSize.y >= HEIGHT_WHEN_STANDING)
+		return true; // Already full height
+
+	float heightDifference = HEIGHT_WHEN_STANDING - currentSize.y;
+
+	// Check a box above the player to see if it collides
+	sf::FloatRect headCheckBounds(
+		sf::Vector2f(currentPosition.x,	currentPosition.y - heightDifference), // space above current head
+		sf::Vector2f(currentSize.x, heightDifference)); // height to test
+
+	// Iterate over tiles overlapping that region
+	for (int x = (int)(headCheckBounds.position.x) / TileMap::TILE_SIZE - 1;
+		x <= (int)(headCheckBounds.position.x + headCheckBounds.size.x) / TileMap::TILE_SIZE + 1;
+		++x)
+	{
+		for (int y = (int)(headCheckBounds.position.y) / TileMap::TILE_SIZE - 1;
+			y <= (int)(headCheckBounds.position.y + headCheckBounds.size.y) / TileMap::TILE_SIZE + 1;
+			++y)
+		{
+			sf::Vector2i tileCoords(x, y);
+
+			if (!tileMap.isWithinBounds(tileCoords))
+				continue;
+
+			if (tileMap.getTile(tileCoords).type != Tile::Type::Solid)
+				continue;
+
+			sf::FloatRect tileBounds(
+				sf::Vector2f(tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE),
+				sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
+
+			auto intersection = headCheckBounds.findIntersection(tileBounds);
+			if (intersection.has_value())
+				return false; // Blocked from standing up
+		}
+	}
+
+	return true; // All clear to grow
 }

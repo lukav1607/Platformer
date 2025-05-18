@@ -35,8 +35,10 @@ public:
 	inline bool isLookingDown() const { return m_isLookingDown; }
 
 private:
-	void applyPhysics(float fixedTimeStep);
+	void applyPhysics(float fixedTimeStep, const TileMap& tileMap);
 	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
+
+	bool canStandUp(const TileMap& tileMap) const;
 
 	const float MOVE_SPEED = 200.f;
 	const float ACCELERATION = 500.f;
@@ -66,8 +68,8 @@ private:
 	const float HEIGHT_WHEN_STANDING = 88.f;
 	const float HEIGHT_WHEN_CROUCHING = 60.f;
 	const float CROUCHED_SPEED_MULTIPLIER = 0.35f;
+	const float CROUCHED_JUMP_MULTIPLIER = 0.4f;
 	bool isCrouching;
-	bool isCollidingUp;
 	sf::FloatRect futureBounds;
 
 	bool m_isLookingUp;

@@ -7,43 +7,67 @@
 // Copyright (c) 2025 Luka Vukorepa
 // ================================================================================================
 
+#include <algorithm>
 #include <cmath>
 #include "GameCamera.hpp"
 #include "Player.hpp"
+#include "../../core/Utility.hpp"
 
 GameCamera::GameCamera(sf::RenderWindow& window) :
 	window(window),
 	view(window.getDefaultView())
 {
+	deadZoneShape.setFillColor(sf::Color::Transparent);
+	deadZoneShape.setOutlineThickness(1.f);
+	deadZoneShape.setOutlineColor(sf::Color::Magenta);
 }
 
 void GameCamera::preRenderUpdate(float fixedTimeStep, float interpolationFactor, const Player& player)
 {
-	sf::Vector2f targetPosition = player.getInterpolatedRenderPosition(interpolationFactor);
+	auto getSmoothing = [](float distance, float minSmooth, float maxSmooth, float maxDistance) {
+		distance = std::min(distance, maxDistance);
+		float t = distance / maxDistance; // 0 to 1
+		float eased = t < 0.5f ? 2 * t * t : 1 - std::pow(-2 * t + 2, 2) / 2;
+		return minSmooth + eased * (maxSmooth - minSmooth);
+		};
 
-	const float DIR_EPSILON = 0.001f;
-	float dx = targetPosition.x - lastPlayerPosition.x;
+	deadZoneShape.setSize({ window.getSize().x * 0.25f, window.getSize().y * 0.05f });
+	sf::Vector2f playerPos = player.getInterpolatedRenderPosition(interpolationFactor) + player.getSize() / 2.f;
+	sf::FloatRect deadZone(center - deadZoneShape.getSize() / 2.f, deadZoneShape.getSize());
 
-	static sf::Vector2f currentLookahead = { 0.f, 0.f };
-	sf::Vector2f desiredLookahead = { 0.f, 0.f };
+	deadZoneShape.setPosition(deadZone.position);
 
-	if (dx > DIR_EPSILON)
-		desiredLookahead = LOOKAHEAD_OFFSET;
-	else if (dx < -DIR_EPSILON)
-		desiredLookahead = -LOOKAHEAD_OFFSET;
+	if (playerPos.x < deadZone.position.x)
+	{
+		float targetX = playerPos.x + deadZone.size.x / 2.f;
+		float distance = deadZone.position.x - playerPos.x;
+		float smoothing = getSmoothing(distance, 0.25f, 1.f, 300.f);
+		center.x += (targetX - center.x) * smoothing * fixedTimeStep;
+	}
+	else if (playerPos.x > deadZone.position.x + deadZone.size.x)
+	{
+		float targetX = playerPos.x - deadZone.size.x / 2.f;
+		float distance = playerPos.x - (deadZone.position.x + deadZone.size.x);
+		float smoothing = getSmoothing(distance, 0.25f, 1.f, 300.f);
+		center.x += (targetX - center.x) * smoothing * fixedTimeStep;
+	}
+	if (playerPos.y < deadZone.position.y)
+	{
+		float targetY = playerPos.y + deadZone.size.y / 2.f;
+		float distance = deadZone.position.y - playerPos.y;
+		float smoothing = getSmoothing(distance, 0.75f, 1.25f, 300.f);
+		center.y += (targetY - center.y) * smoothing * fixedTimeStep;
+	}
+	else if (playerPos.y > deadZone.position.y + deadZone.size.y)
+	{
+		float targetY = playerPos.y - deadZone.size.y / 2.f;
+		float distance = playerPos.y - (deadZone.position.y + deadZone.size.y);
+		float smoothing = getSmoothing(distance, 0.75f, 1.25f, 300.f);
+		center.y += (targetY - center.y) * smoothing * fixedTimeStep;
+	}
+	center.y += verticalOffset.y;
 
-	currentLookahead += (desiredLookahead - currentLookahead) * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep));
-	
-	lastPlayerPosition = targetPosition;
-
-	sf::Vector2f desiredPosition = targetPosition + currentLookahead + verticalOffset;
-	sf::Vector2f currentPosition = view.getCenter();
-	sf::Vector2f positionDifference = desiredPosition - currentPosition;
-
-	//view.setCenter(player.getInterpolatedRenderPosition(interpolationFactor));
-	view.setCenter(
-		sf::Vector2f(currentPosition.x + positionDifference.x * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep)),
-		currentPosition.y + positionDifference.y * (1.f - std::exp(-SMOOTHING_FACTOR * 10.f * fixedTimeStep))));
+	view.setCenter(center);
 	view.setSize(sf::Vector2f(window.getSize().x, window.getSize().y));
 }
 
@@ -55,66 +79,7 @@ void GameCamera::updateVerticalLook(float fixedTimeStep, bool isLookingUp, bool 
 	else if (isLookingDown)
 		targetY = MAX_VERTICAL_OFFSET;
 
-	verticalOffset.y += (targetY - verticalOffset.y) * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep));
+	float smoothing = 2.f; // higher = faster response
+	verticalOffset.y += (targetY - verticalOffset.y) * smoothing * fixedTimeStep;
+	verticalOffset.y = std::clamp(verticalOffset.y, -MAX_VERTICAL_OFFSET, MAX_VERTICAL_OFFSET);
 }
-
-// ---------------------------------------- //
-// -------- VERSION WITH DEAD ZONE -------- //
-// ---------------------------------------- //
-
-//sf::Vector2f playerPos = player.getInterpolatedRenderPosition(interpolationFactor);
-//
-//const float DIR_EPSILON = 0.001f;
-//float dx = playerPos.x - lastPlayerPosition.x;
-//
-//sf::Vector2f desiredLookahead = { 0.f, 0.f };
-//sf::Vector2f currentLookahead = { 0.f, 0.f };
-//if (dx > DIR_EPSILON)
-//desiredLookahead = LOOKAHEAD_OFFSET;
-//else if (dx < -DIR_EPSILON)
-//	desiredLookahead = -LOOKAHEAD_OFFSET;
-//
-//currentLookahead += (desiredLookahead - currentLookahead) * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep));
-//lastPlayerPosition = playerPos;
-//
-//const sf::Vector2f DEAD_ZONE_SIZE = sf::Vector2f(
-//	window.getSize().x * 0.4f, window.getSize().y * 0.4f);
-//
-//sf::FloatRect deadZone(
-//	sf::Vector2f(targetCenter.x - DEAD_ZONE_SIZE.x / 2.f,
-//		targetCenter.y - DEAD_ZONE_SIZE.y / 2.f),
-//	sf::Vector2f(DEAD_ZONE_SIZE.x,
-//		DEAD_ZONE_SIZE.y)
-//);
-//
-//bool hasMoved = false;
-//
-//if (playerPos.x < deadZone.position.x)
-//{
-//	targetCenter.x = playerPos.x + DEAD_ZONE_SIZE.x / 2.f;
-//	hasMoved = true;
-//}
-//else if (playerPos.x > deadZone.position.x + deadZone.size.x)
-//{
-//	targetCenter.x = playerPos.x - DEAD_ZONE_SIZE.x / 2.f;
-//	hasMoved = true;
-//}
-//
-//if (playerPos.y < deadZone.position.y)
-//{
-//	targetCenter.y = playerPos.y + DEAD_ZONE_SIZE.y / 2.f;
-//	hasMoved = true;
-//}
-//else if (playerPos.y > deadZone.position.y + deadZone.size.y)
-//{
-//	targetCenter.y = playerPos.y - DEAD_ZONE_SIZE.y / 2.f;
-//	hasMoved = true;
-//}
-//
-//sf::Vector2f finalTarget = hasMoved ? targetCenter + currentLookahead : targetCenter;
-//
-//sf::Vector2f currentCenter = view.getCenter();
-//sf::Vector2f smoothedCenter = currentCenter + (finalTarget - currentCenter) * (1.f - std::exp(-SMOOTHING_FACTOR * fixedTimeStep));
-//
-//view.setCenter(smoothedCenter);
-//view.setSize(static_cast<sf::Vector2f>(window.getSize()));

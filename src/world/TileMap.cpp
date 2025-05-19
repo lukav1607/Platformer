@@ -162,7 +162,7 @@ void TileMap::setTile(int x, int y, Tile tile, bool shouldRebuildVisuals)
 		rebuildVisuals();
 }
 
-const sf::Color& TileMap::getTileColor(Tile::Type type) const
+sf::Color TileMap::getTileColor(Tile::Type type) const
 {
 	switch (type)
 	{

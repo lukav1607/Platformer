@@ -83,6 +83,7 @@ void Player::render(sf::RenderWindow& window, float interpolationFactor)
 	shape.setPosition(Utility::interpolate(previousPosition, currentPosition, interpolationFactor));
 	shape.setSize(Utility::interpolate(previousSize, currentSize, interpolationFactor));
 	window.draw(shape);
+	
 
 	/*sf::RectangleShape futureShape(futureBounds.size);
 	futureShape.setPosition(futureBounds.position);
@@ -187,7 +188,7 @@ void Player::applyPhysics(float fixedTimeStep, const TileMap& tileMap)
 	}
 	else // Falling
 	{
-		velocity.y = std::max(velocity.y + GRAVITY * GRAVITY_FALL_MULT * fixedTimeStep, MAX_FALL_SPEED);
+		velocity.y = std::min(velocity.y + GRAVITY * GRAVITY_FALL_MULT * fixedTimeStep, TERMINAL_VELOCITY);
 	}
 }
 

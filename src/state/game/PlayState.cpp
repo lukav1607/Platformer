@@ -25,7 +25,10 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 {
 	// Enter editor state
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
+	{
+		player.equalizePositions();
 		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player));
+	}
 
 	player.processInput(window, events);
 }
@@ -39,6 +42,7 @@ void PlayState::render(sf::RenderWindow& window, float interpolationFactor, floa
 {
 	camera.updateVerticalLook(fixedTimeStep, player.isLookingUp(), player.isLookingDown());
 	camera.preRenderUpdate(fixedTimeStep, interpolationFactor, player);
+
 	map.drawTransparentOnly = false;
 	window.draw(map);
 	player.render(window, interpolationFactor);

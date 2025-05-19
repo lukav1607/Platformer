@@ -13,6 +13,7 @@
 
 #include <SFML/Graphics/View.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
+#include <SFML/Graphics/RectangleShape.hpp>
 
 class Player;
 
@@ -25,15 +26,15 @@ public:
 	void preRenderUpdate(float fixedTimeStep, float interpolationFactor, const Player& player);
 
 	const sf::View& getView() const { return view; }
+	inline bool contains(sf::Vector2f point) const { return view.getViewport().contains(point); }
+
+	sf::RectangleShape deadZoneShape;
 
 private:
 	sf::RenderWindow& window;
 	sf::View view;
 
-	const float SMOOTHING_FACTOR = 1.05f;
-	const sf::Vector2f LOOKAHEAD_OFFSET = { 256.f, 0.f };
-	const float MAX_VERTICAL_OFFSET = 192.f;
+	const float MAX_VERTICAL_OFFSET = 12.f;
+	sf::Vector2f center;
 	sf::Vector2f verticalOffset;
-	sf::Vector2f lastPlayerPosition;
-	sf::Vector2f velocity;
 };

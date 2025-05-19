@@ -32,7 +32,7 @@ public:
 	inline void setTile(sf::Vector2i coords, Tile tile, bool shouldRebuildVisuals = true) { setTile(coords.x, coords.y, tile, shouldRebuildVisuals); }
 	inline const Tile& getTile(int x, int y) const { return tiles[y][x]; }
 	inline const Tile& getTile(sf::Vector2i coords) const { return getTile(coords.x, coords.y); }
-	const sf::Color& getTileColor(Tile::Type type) const;
+	sf::Color getTileColor(Tile::Type type) const;
 
 	bool isWithinBounds(int x, int y) const;
 	inline bool isWithinBounds(sf::Vector2i coords) const { return isWithinBounds(coords.x, coords.y); }

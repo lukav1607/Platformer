@@ -19,6 +19,7 @@ Game::Game() :
 	settings.antiAliasingLevel = 8;
 	window.create(sf::VideoMode(sf::Vector2u(1200, 800)), PROJECT_NAME, sf::Style::Default, sf::State::Windowed, settings);
 	window.setVerticalSyncEnabled(true);
+	//window.setFramerateLimit(60U);
 
 	stateManager.push(std::make_unique<PlayState>(stateManager, window));
 }
@@ -29,10 +30,15 @@ int Game::run()
 	sf::Clock clock;						  // Clock to measure time
 	float timeSinceLastUpdate = 0.f;		  // Time accumulator for fixed timestep
 	float interpolationFactor = 0.f;		  // Interpolation factor for rendering
+	float lastFrameTime = 0.f;				  // Time of the last frame
 
 	while (window.isOpen())
 	{
-		timeSinceLastUpdate += clock.restart().asSeconds();
+		lastFrameTime = clock.restart().asSeconds();
+		timeSinceLastUpdate += lastFrameTime;
+		/*if (lastFrameTime > 0.25f)
+			lastFrameTime = 0.25f;*/
+
 		processInput();
 
 		while (timeSinceLastUpdate >= FIXED_TIME_STEP)

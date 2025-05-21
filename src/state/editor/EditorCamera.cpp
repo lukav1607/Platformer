@@ -24,6 +24,8 @@ void EditorCamera::handleInput(sf::Vector2f mouseWorldPosition)
 
 void EditorCamera::update(float fixedTimeStep, float mouseWheelDelta, sf::Vector2f mouseWorldPosition)
 {
+	previousCenter = currentCenter;
+
 	// Update the camera zoom level based on mouse wheel input
 	if (mouseWheelDelta != 0.f)
 	{
@@ -31,6 +33,23 @@ void EditorCamera::update(float fixedTimeStep, float mouseWheelDelta, sf::Vector
 		zoomLevel = std::clamp(zoomLevel, ZOOM_MIN, ZOOM_MAX);
 	}
 	// Update the camera position when panning with the middle mouse button
+	if (isPanning)
+	{
+		sf::Vector2f delta = anchorPoint - mouseWorldPosition;
+		currentCenter += delta * fixedTimeStep * PAN_SPEED;
+		//view.move(delta * fixedTimeStep * PAN_SPEED);
+	}
+	// Update the camera position when moving with the arrow keys
+	else
+	{
+		currentCenter += direction * MOVE_SPEED * zoomLevel * fixedTimeStep;
+		//view.move(direction * MOVE_SPEED * zoomLevel * fixedTimeStep);
+	}
+}
+
+void EditorCamera::applyInterpolatedPosition(float interpolationFactor)
+{
+	view.setCenter(Utility::interpolate(previousCenter, currentCenter, interpolationFactor));
 	//if (isPanning)
 	//{
 	//	sf::Vector2f delta = anchorPoint - mouseWorldPosition;
@@ -41,20 +60,6 @@ void EditorCamera::update(float fixedTimeStep, float mouseWheelDelta, sf::Vector
 	//{
 	//	view.move(direction * MOVE_SPEED * zoomLevel * fixedTimeStep);
 	//}
-}
-
-void EditorCamera::preRenderUpdate(float fixedTimeStep, float interpolationFactor, sf::Vector2f mouseWorldPosition)
-{
-	if (isPanning)
-	{
-		sf::Vector2f delta = anchorPoint - mouseWorldPosition;
-		view.move(delta * fixedTimeStep * PAN_SPEED);
-	}
-	// Update the camera position when moving with the arrow keys
-	else
-	{
-		view.move(direction * MOVE_SPEED * zoomLevel * fixedTimeStep);
-	}
 }
 
 void EditorCamera::resize(sf::Vector2u windowSize)

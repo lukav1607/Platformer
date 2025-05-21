@@ -29,7 +29,7 @@ public:
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
-	void render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep) override;
+	void render(sf::RenderWindow& window, float interpolationFactor) override;
 
 	void applyView(sf::RenderWindow& window) override;
 

@@ -31,7 +31,7 @@ public:
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events);
 	void update(float fixedTimeStep);
-	void render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep);
+	void render(sf::RenderWindow& window, float interpolationFactor);
 
 private:
 	std::vector<std::unique_ptr<State>> states;

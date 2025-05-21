@@ -33,7 +33,7 @@ void GameCamera::update(float fixedTimeStep, const Player& player)
 }
 
 
-void GameCamera::preRenderUpdate(float interpolationFactor)
+void GameCamera::applyInterpolatedPosition(float interpolationFactor)
 {
 	view.setCenter(Utility::interpolate(previousCenter, currentCenter, interpolationFactor));
 	view.setSize(sf::Vector2f(window.getSize().x, window.getSize().y));

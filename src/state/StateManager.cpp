@@ -64,7 +64,7 @@ void StateManager::update(float fixedTimeStep)
 		std::cerr << "Error: No states to update!" << std::endl;
 }
 
-void StateManager::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
+void StateManager::render(sf::RenderWindow& window, float interpolationFactor)
 {
 	// Make sure there is at least one state to render
 	if (states.empty())
@@ -93,6 +93,6 @@ void StateManager::render(sf::RenderWindow& window, float interpolationFactor, f
 	for (int i = int(states.size()) - stateCounter; i < int(states.size()); ++i)
 	{
 		auto& s = *states.at(i);
-		s.render(window, interpolationFactor, fixedTimeStep);
+		s.render(window, interpolationFactor);
 	}
 }

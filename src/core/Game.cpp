@@ -49,7 +49,7 @@ int Game::run()
 		}
 
 		interpolationFactor = std::clamp(timeSinceLastUpdate / FIXED_TIME_STEP, 0.f, 1.f);
-		render(interpolationFactor, FIXED_TIME_STEP);
+		render(interpolationFactor);
 	}
 	return 0;
 }
@@ -85,12 +85,12 @@ void Game::update(float fixedTimeStep)
 	stateManager.update(fixedTimeStep);
 }
 
-void Game::render(float interpolationFactor, float fixedTimeStep)
+void Game::render(float interpolationFactor)
 {
 	window.clear(sf::Color(30, 25, 60));
 
 	stateManager.top()->applyView(window);
-	stateManager.render(window, interpolationFactor, fixedTimeStep);
+	stateManager.render(window, interpolationFactor);
 
 	window.display();
 }

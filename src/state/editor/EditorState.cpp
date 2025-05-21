@@ -106,14 +106,14 @@ void EditorState::update(float fixedTimeStep)
 	mouseWheelDelta = 0.f;
 }
 
-void EditorState::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
+void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 {
 	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);
-	camera.preRenderUpdate(fixedTimeStep, interpolationFactor, mouseWorldPosition);
+	camera.applyInterpolatedPosition(interpolationFactor);
 
 	// Draw in world
 	window.setView(camera.getView());
-	playState.render(window, interpolationFactor, fixedTimeStep); // <- Handle rendering the PlayState in the background here to
+	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
 	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
 	handleTilePreviewRendering(window, tileCoords);
 	renderPlayerPreview(window, tileCoords);

@@ -40,9 +40,9 @@ void PlayState::update(float fixedTimeStep)
 	camera.update(fixedTimeStep, player);
 }
 
-void PlayState::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
+void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
 {
-	camera.preRenderUpdate(interpolationFactor);
+	camera.applyInterpolatedPosition(interpolationFactor);
 
 	map.drawTransparentOnly = false;
 	window.draw(map);

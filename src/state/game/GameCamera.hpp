@@ -23,7 +23,7 @@ public:
 	GameCamera(sf::RenderWindow& window);
 
 	void update(float fixedTimeStep, const Player& player);
-	void preRenderUpdate(float interpolationFactor);
+	void applyInterpolatedPosition(float interpolationFactor);
 
 	const sf::View& getView() const { return view; }
 	inline bool contains(sf::Vector2f point) const { return view.getViewport().contains(point); }

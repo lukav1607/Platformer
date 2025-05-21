@@ -18,7 +18,7 @@ class EditorCamera
 public:
 	void handleInput(sf::Vector2f mouseWorldPosition);
 	void update(float fixedTimeStep, float mouseWheelDelta, sf::Vector2f mouseWorldPosition);
-	void preRenderUpdate(float fixedTimeStep, float interpolationFactor, sf::Vector2f mouseWorldPosition);
+	void applyInterpolatedPosition(float interpolationFactor);
 
 	void resize(sf::Vector2u windowSize);
 
@@ -32,6 +32,8 @@ private:
 
 	static constexpr float MOVE_SPEED = 500.f;
 	sf::Vector2f direction;
+	sf::Vector2f currentCenter;
+	sf::Vector2f previousCenter;
 
 	static constexpr float PAN_SPEED = 20.f;
 	sf::Vector2f anchorPoint;

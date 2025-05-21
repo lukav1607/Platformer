@@ -35,7 +35,7 @@ private:
 	sf::RenderWindow& window;
 	sf::View view;
 
-	const float MAX_VERTICAL_OFFSET = 80.f;
+	const float MAX_VERTICAL_OFFSET = 64.f;
 	const float VERTICAL_LOOK_SPEED = 1.f;
 	float verticalOffset;
 	sf::Vector2f currentCenter;

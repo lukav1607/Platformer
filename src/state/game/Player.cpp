@@ -30,8 +30,7 @@ Player::Player() :
 {
 	shape.setSize(currentSize);
 	shape.setFillColor(color);
-	//shape.setOrigin(shape.getSize() / 2.f);
-	shape.setPosition({ 100.f, 100.f });
+	shape.setPosition(Utility::tileToWorldCoords(spawnPosition));
 }
 
 void Player::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)

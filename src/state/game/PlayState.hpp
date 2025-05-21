@@ -16,6 +16,7 @@
 #include "../State.hpp"
 #include "../../world/TileMap.hpp"
 #include "Player.hpp"
+#include "Enemy.hpp"
 #include "GameCamera.hpp"
 
 class PlayState : public State
@@ -35,5 +36,7 @@ private:
 	TileMap map;
 
 	Player player;
+	std::vector<Enemy> enemies;
+
 	GameCamera camera;
 };

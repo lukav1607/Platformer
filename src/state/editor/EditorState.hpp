@@ -25,7 +25,7 @@ struct Action;
 class EditorState : public State
 {
 public:
-	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, sf::Font& font);
+	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, std::vector<Enemy>& enemies, sf::Font& font);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -42,6 +42,7 @@ private:
 	TileMap& map;
 	PlayState& playState;
 	Player& player;
+	std::vector<Enemy>& enemies;
 	static EditorCamera camera;
 
 	void handleSaveLoadInput();
@@ -52,8 +53,29 @@ private:
 	sf::Text mapSavedText;
 	sf::Text mapLoadedText;
 
-	void handlePlayerPlacement(sf::Vector2i tileCoords);
+	void handlePlayerPlacement(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
 	void renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
+	void renderPlayerModes(sf::RenderWindow& window);
+	enum class PlayerMode
+	{
+		SET_SPAWN,
+		MOVE_TO
+	};
+	std::vector<PlayerMode> playerModes;
+	unsigned selectedPlayerModeIndex;
+	sf::Text playerPlacementText;
+	sf::RectangleShape playerSpawnShape;
+
+	void handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
+	void renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
+	void renderEnemyPalette(sf::RenderWindow& window);
+	enum class Enemies
+	{
+		ENEMY_1
+	};
+	std::vector<Enemies> enemyPalette;
+	unsigned selectedEnemyIndex;
+	sf::Text enemyPaletteText;
 
 	void rebuildGridLines();
 	void renderGrid(sf::RenderWindow& window);

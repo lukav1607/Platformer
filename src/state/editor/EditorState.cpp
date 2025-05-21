@@ -15,14 +15,22 @@
 
 EditorCamera EditorState::camera;
 
-EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, sf::Font& font) :
+EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, std::vector<Enemy>& enemies, sf::Font& font) :
 	State(stateManager),
 	playState(playState),
 	map(map),
 	player(player),
+	enemies(enemies),
 	font(font),
 	saveTextTimer(0.f),
 	loadTextTimer(0.f),
+	playerModes{
+		PlayerMode::MOVE_TO,
+		PlayerMode::SET_SPAWN
+	},
+	enemyPalette{
+		Enemies::ENEMY_1
+	},
 	palette{
 		Tile::Type::Background,
 		Tile::Type::Solid,
@@ -30,6 +38,8 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 		Tile::Type::Door
 	},
 	selectedTileIndex(0U),
+	selectedPlayerModeIndex(0U),
+	selectedEnemyIndex(0U),
 	isDrawingSelection(false),
 	selectionAction(SelectionAction::NONE),
 	gridLines(sf::PrimitiveType::Lines),
@@ -40,12 +50,25 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	toolOffset(32.f, 64.f),
 	undoRedoTimer(UNDO_REDO_INITIAL_DELAY),
 	mouseWheelDelta(0.f),
+	playerPlacementText(font, "Player", 32U),
+	enemyPaletteText(font, "Enemy Palette", 32U),
 	tilePaletteText(font, "Tile Palette", 32U),
 	mapSavedText(font, "Map saved!", 48U),
 	mapLoadedText(font, "Map loaded!", 48U)
 {
 	rebuildGridLines();
 
+	playerSpawnShape.setSize(player.getSize());
+	playerSpawnShape.setFillColor(sf::Color::Transparent);
+	playerSpawnShape.setOutlineThickness(4.f);
+	playerSpawnShape.setOutlineColor(sf::Color(player.getColor().r - 50.f, player.getColor().g + 200.f, player.getColor().b - 50.f, 255));
+
+	playerPlacementText.setFillColor(sf::Color::White);
+	playerPlacementText.setOutlineColor(sf::Color(30, 30, 30, 255));
+	playerPlacementText.setOutlineThickness(2.f);
+	enemyPaletteText.setFillColor(sf::Color::White);
+	enemyPaletteText.setOutlineColor(sf::Color(30, 30, 30, 255));
+	enemyPaletteText.setOutlineThickness(2.f);
 	tilePaletteText.setFillColor(sf::Color::White);
 	tilePaletteText.setOutlineColor(sf::Color(30, 30, 30, 255));
 	tilePaletteText.setOutlineThickness(2.f);
@@ -85,7 +108,7 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 		handleTileInput(sf::Mouse::getPosition(window), tileCoords);
 		break;
 	case Mode::PLAYER:
-		handlePlayerPlacement(tileCoords);
+		handlePlayerPlacement(sf::Mouse::getPosition(window), tileCoords);
 		break;
 	default:
 		break;
@@ -116,12 +139,15 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	playState.render(window, interpolationFactor); // <- Handle rendering the PlayState in the background here to
 	renderSelectionRect(window);                   //    make sure it's in sync with the EditorState camera.
 	handleTilePreviewRendering(window, tileCoords);
+	window.draw(playerSpawnShape);
 	renderPlayerPreview(window, tileCoords);
 	renderGrid(window);	
 
 	// Draw as overlay/UI
 	window.setView(uiView);
 	renderTilePalette(window);
+	renderPlayerModes(window);
+	renderEnemyPalette(window);
 	renderSaveLoadText(window);
 
 	// Reset the view to the default Editor view (editor camera)
@@ -178,22 +204,45 @@ void EditorState::renderSaveLoadText(sf::RenderWindow& window)
 	}
 }
 
-void EditorState::handlePlayerPlacement(sf::Vector2i tileCoords)
+void EditorState::handlePlayerPlacement(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
 {
-	if (!map.isWithinBounds(tileCoords) ||
-		!map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+	if (mode != Mode::PLAYER)
 		return;
 
 	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
 
-	if (isLeftClickReleased &&
-		map.getTile(tileCoords).type != Tile::Type::Solid &&
-		map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type != Tile::Type::Solid)
+	if (isLeftClickReleased)
 	{
-		player.setPosition(tileCoords);
-		//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
-		
-	}
+		// Tile palette click detection / selection
+		for (size_t i = 0; i < playerModes.size(); ++i)
+		{
+			sf::FloatRect bounds({ toolOffset.x + 10.f + i * 60.f, toolOffset.y + 10.f }, { 50.f, 50.f });
+			if (bounds.contains(sf::Vector2f(mouseWindowPosition)))
+			{
+				selectedPlayerModeIndex = i;
+				return;
+			}
+		}
+
+		if (!map.isWithinBounds(tileCoords) || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+			return;
+		if (map.getTile(tileCoords).type == Tile::Type::Solid || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid)
+			return;
+
+		if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::MOVE_TO))
+		{
+			player.setPosition(tileCoords);
+			//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		}
+		if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::SET_SPAWN))
+		{
+			player.spawnPosition = tileCoords;
+			playerSpawnShape.setPosition({
+				tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+				tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
+			//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		}
+	}	
 	//if (!batch.empty() && (isLeftClickReleased || isRightClickReleased))
 	//{
 	//	// Push the batch of actions to the undo stack and clear the redo stack
@@ -207,12 +256,24 @@ void EditorState::renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i til
 	if (mode != Mode::PLAYER)
 		return;
 
-	if (!map.isWithinBounds(tileCoords) ||
-		!map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+	if (!map.isWithinBounds(tileCoords) || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
 		return;
 
-	if (map.getTile(tileCoords).type != Tile::Type::Solid &&
-		map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type != Tile::Type::Solid)
+	if (map.getTile(tileCoords).type == Tile::Type::Solid || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid)
+		return;
+
+	if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::SET_SPAWN))
+	{
+		sf::RectangleShape playerPreview(player.getSize());
+		playerPreview.setPosition({
+			tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+			tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
+		playerPreview.setFillColor(sf::Color::Transparent);
+		playerPreview.setOutlineThickness(4.f);
+		playerPreview.setOutlineColor(sf::Color(player.getColor().r - 50.f, player.getColor().g + 200.f, player.getColor().b - 50.f, 128));
+		window.draw(playerPreview);
+	}
+	else if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::MOVE_TO))
 	{
 		sf::RectangleShape playerPreview(player.getSize());
 		playerPreview.setPosition({
@@ -221,6 +282,102 @@ void EditorState::renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i til
 		playerPreview.setFillColor(sf::Color(player.getColor().r, player.getColor().g, player.getColor().b, 128));
 		window.draw(playerPreview);
 	}
+}
+
+void EditorState::renderPlayerModes(sf::RenderWindow& window)
+{
+	if (mode != Mode::PLAYER)
+		return;
+
+	for (size_t i = 0; i < playerModes.size(); ++i)
+	{
+		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
+		shape.setPosition({ toolOffset.x + i * 60.f, toolOffset.y });
+		shape.setFillColor(selectedPlayerModeIndex == 0U ? player.getColor() : player.getColor() + sf::Color(10, 10, 10));
+
+		if (i == selectedPlayerModeIndex)
+		{
+			shape.setOutlineThickness(2.f);
+			shape.setOutlineColor(sf::Color::White);
+		}
+		window.draw(shape);
+	}
+
+	playerPlacementText.setOrigin({ playerPlacementText.getGlobalBounds().size.x / 2.f, playerPlacementText.getGlobalBounds().size.y / 2.f });
+	playerPlacementText.setPosition({ toolOffset.x + 55.f/*(palette.size() * 60.f) / 2.f - 10.f*/, playerPlacementText.getGlobalBounds().size.y });
+	window.draw(playerPlacementText);
+}
+
+void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
+{
+	if (mode != Mode::ENEMIES)
+		return;
+
+	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
+
+	if (isLeftClickReleased)
+	{
+		// Tile palette click detection / selection
+		for (size_t i = 0; i < enemyPalette.size(); ++i)
+		{
+			sf::FloatRect bounds({ toolOffset.x + 10.f + i * 60.f, toolOffset.y + 10.f }, { 50.f, 50.f });
+			if (bounds.contains(sf::Vector2f(mouseWindowPosition)))
+			{
+				selectedEnemyIndex = i;
+				return;
+			}
+		}
+
+		if (!map.isWithinBounds(tileCoords)/* || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f))*/)
+			return;
+		if (map.getTile(tileCoords).type == Tile::Type::Solid/* || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid*/)
+			return;
+
+		if (selectedEnemyIndex == static_cast<unsigned>(Enemies::ENEMY_1))
+		{
+
+			//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		}
+		//if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::SET_SPAWN))
+		//{
+		//	player.spawnPosition = tileCoords;
+		//	playerSpawnShape.setPosition({
+		//		tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+		//		tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
+		//	//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		//}
+	}
+}
+
+void EditorState::renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
+{
+	if (mode != Mode::ENEMIES)
+		return;
+
+	if (!map.isWithinBounds(tileCoords) ||
+		!map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+		return;
+
+	/*if (map.getTile(tileCoords).type != Tile::Type::Solid &&
+		map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type != Tile::Type::Solid)
+	{
+		sf::RectangleShape playerPreview(player.getSize());
+		playerPreview.setPosition({
+			tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+			tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
+		playerPreview.setFillColor(sf::Color(player.getColor().r, player.getColor().g, player.getColor().b, 128));
+		window.draw(playerPreview);
+	}*/
+}
+
+void EditorState::renderEnemyPalette(sf::RenderWindow& window)
+{
+	if (mode != Mode::ENEMIES)
+		return;
+
+	enemyPaletteText.setOrigin({ enemyPaletteText.getGlobalBounds().size.x / 2.f, enemyPaletteText.getGlobalBounds().size.y / 2.f });
+	enemyPaletteText.setPosition({ toolOffset.x + 110.f/*(enemies.size() * 60.f) / 2.f - 10.f*/, enemyPaletteText.getGlobalBounds().size.y });
+	window.draw(enemyPaletteText);
 }
 
 void EditorState::rebuildGridLines()

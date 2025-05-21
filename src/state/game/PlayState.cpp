@@ -28,7 +28,7 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
 	{
 		player.equalizePositions();
-		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player, font));
+		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player, enemies, font));
 	}
 
 	player.processInput(window, events);

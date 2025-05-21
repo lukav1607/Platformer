@@ -36,6 +36,8 @@ public:
 	inline bool isLookingUp() const { return m_isLookingUp; }
 	inline bool isLookingDown() const { return m_isLookingDown; }
 
+	sf::Vector2i spawnPosition;
+
 private:
 	void applyPhysics(float fixedTimeStep, const TileMap& tileMap);
 	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);

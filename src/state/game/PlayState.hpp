@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include <SFML/Graphics/Font.hpp>
 #include "../State.hpp"
 #include "../../world/TileMap.hpp"
 #include "Player.hpp"
@@ -20,7 +21,7 @@
 class PlayState : public State
 {
 public:
-	PlayState(StateManager& stateManager, sf::RenderWindow& window);
+	PlayState(StateManager& stateManager, sf::RenderWindow& window, sf::Font& font);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -29,6 +30,8 @@ public:
 	void applyView(sf::RenderWindow& window) override;
 
 private:
+	sf::Font& font;
+
 	TileMap map;
 
 	Player player;

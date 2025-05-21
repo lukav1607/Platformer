@@ -11,6 +11,7 @@
 #pragma once
 
 #include <string>
+#include <SFML/Graphics/Font.hpp>
 #include "../state/StateManager.hpp"
 
 class Game
@@ -28,6 +29,7 @@ private:
 
 	sf::RenderWindow window;
 	StateManager stateManager;
+	sf::Font font;
 
 	bool isOutOfFocus;
 };

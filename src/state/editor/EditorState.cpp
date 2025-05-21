@@ -15,11 +15,14 @@
 
 EditorCamera EditorState::camera;
 
-EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player) :
+EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, sf::Font& font) :
 	State(stateManager),
 	playState(playState),
 	map(map),
 	player(player),
+	font(font),
+	saveTextTimer(0.f),
+	loadTextTimer(0.f),
 	palette{
 		Tile::Type::Background,
 		Tile::Type::Solid,
@@ -34,10 +37,24 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	isGridShown(true),
 	mode(Mode::TILES),
 	isErasing(false),
+	toolOffset(32.f, 64.f),
 	undoRedoTimer(UNDO_REDO_INITIAL_DELAY),
-	mouseWheelDelta(0.f)
+	mouseWheelDelta(0.f),
+	tilePaletteText(font, "Tile Palette", 32U),
+	mapSavedText(font, "Map saved!", 48U),
+	mapLoadedText(font, "Map loaded!", 48U)
 {
 	rebuildGridLines();
+
+	tilePaletteText.setFillColor(sf::Color::White);
+	tilePaletteText.setOutlineColor(sf::Color(30, 30, 30, 255));
+	tilePaletteText.setOutlineThickness(2.f);
+	mapSavedText.setFillColor(sf::Color::White);
+	mapSavedText.setOutlineColor(sf::Color(30, 30, 30, 255));
+	mapSavedText.setOutlineThickness(2.f);
+	mapLoadedText.setFillColor(sf::Color::White);
+	mapLoadedText.setOutlineColor(sf::Color(30, 30, 30, 255));
+	mapLoadedText.setOutlineThickness(2.f);
 }
 
 void EditorState::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)
@@ -84,6 +101,8 @@ void EditorState::update(float fixedTimeStep)
 	camera.update(fixedTimeStep, mouseWheelDelta, mouseWorldPosition);
 	handleUndoRedoUpdate(fixedTimeStep);	
 
+	saveTextTimer = std::max(0.f, saveTextTimer - fixedTimeStep);
+	loadTextTimer = std::max(0.f, loadTextTimer - fixedTimeStep);
 	mouseWheelDelta = 0.f;
 }
 
@@ -103,6 +122,7 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor, fl
 	// Draw as overlay/UI
 	window.setView(uiView);
 	renderTilePalette(window);
+	renderSaveLoadText(window);
 
 	// Reset the view to the default Editor view (editor camera)
 	window.setView(camera.getView());
@@ -126,7 +146,10 @@ void EditorState::handleSaveLoadInput()
 	if (ctrlPressed && sReleased)
 	{
 		if (map.saveToJson("assets/maps/test_map.json"))
+		{
 			std::cout << "Map saved successfully!" << std::endl;
+			saveTextTimer = SAVE_LOAD_TEXT_LIFETIME;
+		}
 	}
 	if (ctrlPressed && lReleased)
 	{
@@ -134,7 +157,24 @@ void EditorState::handleSaveLoadInput()
 		{
 			rebuildGridLines();
 			std::cout << "Map loaded successfully!" << std::endl;
+			loadTextTimer = SAVE_LOAD_TEXT_LIFETIME;
 		}
+	}
+}
+
+void EditorState::renderSaveLoadText(sf::RenderWindow& window)
+{
+	if (saveTextTimer > 0.f)
+	{
+		mapSavedText.setPosition({ uiView.getCenter().x - mapSavedText.getGlobalBounds().size.x / 2.f,
+			uiView.getCenter().y - mapSavedText.getGlobalBounds().size.y / 2.f });
+		window.draw(mapSavedText);
+	}
+	if (loadTextTimer > 0.f)
+	{
+		mapLoadedText.setPosition({ uiView.getCenter().x - mapLoadedText.getGlobalBounds().size.x / 2.f,
+			uiView.getCenter().y - mapLoadedText.getGlobalBounds().size.y / 2.f });
+		window.draw(mapLoadedText);
 	}
 }
 
@@ -234,7 +274,7 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 		// Tile palette click detection / selection
 		for (size_t i = 0; i < palette.size(); ++i)
 		{
-			sf::FloatRect bounds({ 10.f + i * 60.f, 10.f }, { 50.f, 50.f });
+			sf::FloatRect bounds({ toolOffset.x + 10.f + i * 60.f, toolOffset.y + 10.f }, { 50.f, 50.f });
 			if (bounds.contains(sf::Vector2f(mouseWindowPosition)))
 			{
 				selectedTileIndex = i;
@@ -474,7 +514,7 @@ void EditorState::renderTilePalette(sf::RenderWindow& window)
 	for (size_t i = 0; i < palette.size(); ++i)
 	{
 		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
-		shape.setPosition({ 10.f + i * 60.f, 10.f });
+		shape.setPosition({ toolOffset.x + i * 60.f, toolOffset.y });
 		shape.setFillColor(map.getTileColor(palette.at(i)));
 
 		if (i == selectedTileIndex)
@@ -484,6 +524,9 @@ void EditorState::renderTilePalette(sf::RenderWindow& window)
 		}
 		window.draw(shape);
 	}
+	tilePaletteText.setOrigin({ tilePaletteText.getGlobalBounds().size.x / 2.f, tilePaletteText.getGlobalBounds().size.y / 2.f });
+	tilePaletteText.setPosition({ toolOffset.x + (palette.size() * 60.f) / 2.f - 10.f, tilePaletteText.getGlobalBounds().size.y});
+	window.draw(tilePaletteText);
 }
 
 void EditorState::handleTogglesInput()

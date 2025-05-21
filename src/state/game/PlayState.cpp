@@ -13,10 +13,11 @@
 #include "../editor/EditorState.hpp"
 #include "../../core/Utility.hpp"
 
-PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window) :
+PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window, sf::Font& font) :
 	State(stateManager),
 	map(48, 32),
-	camera(window)
+	camera(window),
+	font(font)
 {
 	map.loadFromJson("assets/maps/test_map.json");
 }
@@ -27,7 +28,7 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
 	{
 		player.equalizePositions();
-		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player));
+		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player, font));
 	}
 
 	player.processInput(window, events);
@@ -36,12 +37,12 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 void PlayState::update(float fixedTimeStep)
 {
 	player.update(fixedTimeStep, map);
+	camera.update(fixedTimeStep, player);
 }
 
 void PlayState::render(sf::RenderWindow& window, float interpolationFactor, float fixedTimeStep)
 {
-	camera.updateVerticalLook(fixedTimeStep, player.isLookingUp(), player.isLookingDown());
-	camera.preRenderUpdate(fixedTimeStep, interpolationFactor, player);
+	camera.preRenderUpdate(interpolationFactor);
 
 	map.drawTransparentOnly = false;
 	window.draw(map);

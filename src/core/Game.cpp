@@ -13,7 +13,8 @@
 #include "../state/game/PlayState.hpp"
 
 Game::Game() :
-	isOutOfFocus(false)
+	isOutOfFocus(false),
+	font("assets/fonts/consola.ttf")
 {
 	sf::ContextSettings settings;
 	settings.antiAliasingLevel = 8;
@@ -21,7 +22,7 @@ Game::Game() :
 	window.setVerticalSyncEnabled(true);
 	//window.setFramerateLimit(60U);
 
-	stateManager.push(std::make_unique<PlayState>(stateManager, window));
+	stateManager.push(std::make_unique<PlayState>(stateManager, window, font));
 }
 
 int Game::run()
@@ -36,8 +37,8 @@ int Game::run()
 	{
 		lastFrameTime = clock.restart().asSeconds();
 		timeSinceLastUpdate += lastFrameTime;
-		/*if (lastFrameTime > 0.25f)
-			lastFrameTime = 0.25f;*/
+		/*if (lastFrameTime > 0.01f)
+			lastFrameTime = 0.01f;*/
 
 		processInput();
 

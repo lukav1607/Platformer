@@ -14,6 +14,7 @@
 
 #include <stack>
 #include <SFML/Graphics/View.hpp>
+#include <SFML/Graphics/Text.hpp>
 #include "../State.hpp"
 #include "../game/PlayState.hpp"
 #include "../../world/TileMap.hpp"
@@ -24,7 +25,7 @@ struct Action;
 class EditorState : public State
 {
 public:
-	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player);
+	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, sf::Font& font);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -37,12 +38,19 @@ public:
 														  // renders the PlayState from it's render function despite this flag.
 
 private:
+	sf::Font& font;
 	TileMap& map;
 	PlayState& playState;
 	Player& player;
 	static EditorCamera camera;
 
 	void handleSaveLoadInput();
+	void renderSaveLoadText(sf::RenderWindow& window);
+	const float SAVE_LOAD_TEXT_LIFETIME = 1.5f;
+	float saveTextTimer;
+	float loadTextTimer;
+	sf::Text mapSavedText;
+	sf::Text mapLoadedText;
 
 	void handlePlayerPlacement(sf::Vector2i tileCoords);
 	void renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
@@ -61,6 +69,7 @@ private:
 	void handleTilePreviewRendering(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderTilePalette(sf::RenderWindow& window);
+	sf::Text tilePaletteText;
 	std::vector<Tile::Type> palette;
 	unsigned selectedTileIndex;
 	bool isDrawingSelection;
@@ -102,7 +111,8 @@ private:
 	std::stack<std::unique_ptr<Action>> redoStack;
 
 	//std::vector<std::unique_ptr<Action>> batch;
-		
+
+	sf::Vector2f toolOffset;
 
 	sf::View uiView;
 

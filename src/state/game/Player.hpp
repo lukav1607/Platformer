@@ -44,11 +44,11 @@ private:
 
 	bool canStandUp(const TileMap& tileMap) const;
 
-	const float MOVE_SPEED = 180.f;
-	const float ACCELERATION = 500.f;
-	const float DECELERATION = 1000.f;
+	const float MOVE_SPEED = 325.f;
+	const float ACCELERATION = 750.f;
+	const float DECELERATION = 1500.f;
 
-	const float JUMP_VELOCITY = -850.f;
+	const float JUMP_VELOCITY = -875.f;
 	const float GRAVITY = 1500.f;
 
 	const float GRAVITY_JUMP_CUT_MULT = 3.0f; // Applied when player releases jump early

@@ -240,7 +240,7 @@ void Player::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 	}
 	futurePosition.y = verticalFuturePos.y;
 
-	sf::Vector2f horizontalFuturePos = { futurePosition.x + velocity.x * fixedTimeStep, futurePosition.y };
+	sf::Vector2f horizontalFuturePos = { currentPosition.x + velocity.x * fixedTimeStep, futurePosition.y };
 	sf::FloatRect horizontalBounds(horizontalFuturePos, currentSize);
 
 	for (int x = (int)(horizontalBounds.position.x) / TileMap::TILE_SIZE - 1;

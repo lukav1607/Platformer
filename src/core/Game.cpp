@@ -18,7 +18,7 @@ Game::Game() :
 {
 	sf::ContextSettings settings;
 	settings.antiAliasingLevel = 8;
-	window.create(sf::VideoMode(sf::Vector2u(1200, 800)), PROJECT_NAME, sf::Style::Default, sf::State::Windowed, settings);
+	window.create(sf::VideoMode::getDesktopMode(), PROJECT_NAME, sf::Style::Default, sf::State::Windowed, settings);
 	window.setVerticalSyncEnabled(true);
 	//window.setFramerateLimit(60U);
 

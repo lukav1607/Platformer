@@ -28,6 +28,8 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
 	{
 		player.equalizePositions();
+		for (auto& enemy : enemies)
+			enemy.equalizePositions();
 		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player, enemies, font));
 	}
 
@@ -37,6 +39,10 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 void PlayState::update(float fixedTimeStep)
 {
 	player.update(fixedTimeStep, map);
+
+	for (auto& enemy : enemies)
+		enemy.update(fixedTimeStep, map);
+
 	camera.update(fixedTimeStep, player);
 }
 
@@ -46,7 +52,11 @@ void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
 
 	map.drawTransparentOnly = false;
 	window.draw(map);
+
 	player.render(window, interpolationFactor);
+	for (auto& enemy : enemies)
+		enemy.render(window, interpolationFactor);
+
 	map.drawTransparentOnly = true;
 	window.draw(map);
 }

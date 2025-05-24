@@ -29,7 +29,9 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 		PlayerMode::SET_SPAWN
 	},
 	enemyPalette{
-		Enemies::ENEMY_1
+		Enemy::Type::Crawling,
+		Enemy::Type::Walking,
+		Enemy::Type::Flying
 	},
 	palette{
 		Tile::Type::Background,
@@ -40,6 +42,7 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	selectedTileIndex(0U),
 	selectedPlayerModeIndex(0U),
 	selectedEnemyIndex(0U),
+	currentEnemy(),
 	isDrawingSelection(false),
 	selectionAction(SelectionAction::NONE),
 	gridLines(sf::PrimitiveType::Lines),
@@ -110,6 +113,9 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 	case Mode::PLAYER:
 		handlePlayerPlacement(sf::Mouse::getPosition(window), tileCoords);
 		break;
+	case Mode::ENEMIES:
+		handleEnemyPlacement(sf::Mouse::getPosition(window), tileCoords);
+		break;
 	default:
 		break;
 	}
@@ -141,6 +147,7 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	handleTilePreviewRendering(window, tileCoords);
 	window.draw(playerSpawnShape);
 	renderPlayerPreview(window, tileCoords);
+	renderEnemyPreview(window, tileCoords);
 	renderGrid(window);	
 
 	// Draw as overlay/UI
@@ -314,6 +321,7 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 		return;
 
 	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
+	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
 
 	if (isLeftClickReleased)
 	{
@@ -323,6 +331,8 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 			sf::FloatRect bounds({ toolOffset.x + 10.f + i * 60.f, toolOffset.y + 10.f }, { 50.f, 50.f });
 			if (bounds.contains(sf::Vector2f(mouseWindowPosition)))
 			{
+				currentEnemy.setType(static_cast<Enemy::Type>(i));
+				currentEnemy.clearPatrolPositions();
 				selectedEnemyIndex = i;
 				return;
 			}
@@ -333,19 +343,34 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 		if (map.getTile(tileCoords).type == Tile::Type::Solid/* || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid*/)
 			return;
 
-		if (selectedEnemyIndex == static_cast<unsigned>(Enemies::ENEMY_1))
-		{
+		if (currentEnemy.getPatrolPositions().size() > 1)
+			for (int i = 1; i < currentEnemy.getPatrolPositions().size(); ++i)
+				if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
+					return;
 
-			//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
+		if (!currentEnemy.getPatrolPositions().empty() && tileCoords == currentEnemy.getPatrolPositions().at(0))
+		{
+			enemies.emplace_back(Enemy(currentEnemy.getPatrolPositions(), static_cast<Enemy::Type>(selectedEnemyIndex)));
+			currentEnemy.clearPatrolPositions();
+			return;
 		}
-		//if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::SET_SPAWN))
-		//{
-		//	player.spawnPosition = tileCoords;
-		//	playerSpawnShape.setPosition({
-		//		tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
-		//		tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
-		//	//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
-		//}
+
+		if (currentEnemy.isValidPatrolPosition(map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
+			currentEnemy.addPatrolPosition(tileCoords);
+	}
+	else if (isRightClickReleased)
+	{
+		if (currentEnemy.getPatrolPositions().empty())
+			return;
+
+		for (int i = 0; i < currentEnemy.getPatrolPositions().size(); ++i)
+		{
+			if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
+			{
+				currentEnemy.removePatrolPosition(tileCoords);
+				return;
+			}
+		}
 	}
 }
 
@@ -354,26 +379,57 @@ void EditorState::renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tile
 	if (mode != Mode::ENEMIES)
 		return;
 
-	if (!map.isWithinBounds(tileCoords) ||
-		!map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+	for (auto& enemy : enemies)
+		enemy.renderPatrolPositions(window, font);
+
+	currentEnemy.renderPatrolPositions(window, font);
+
+	if (!map.isWithinBounds(tileCoords))
 		return;
 
-	/*if (map.getTile(tileCoords).type != Tile::Type::Solid &&
-		map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type != Tile::Type::Solid)
+	sf::RectangleShape enemyPatrolPositionPreview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
+	enemyPatrolPositionPreview.setPosition(Utility::tileToWorldCoords(tileCoords));
+
+	if (currentEnemy.isValidPatrolPosition(map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
 	{
-		sf::RectangleShape playerPreview(player.getSize());
-		playerPreview.setPosition({
-			tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
-			tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
-		playerPreview.setFillColor(sf::Color(player.getColor().r, player.getColor().g, player.getColor().b, 128));
-		window.draw(playerPreview);
-	}*/
+		enemyPatrolPositionPreview.setFillColor(sf::Color(100, 220, 100, 100));
+		enemyPatrolPositionPreview.setOutlineColor(sf::Color(100, 220, 100, 200));
+		enemyPatrolPositionPreview.setOutlineThickness(2.f);
+		window.draw(enemyPatrolPositionPreview);
+	}
+	else
+	{
+		sf::VertexArray x(sf::PrimitiveType::Lines, 2);
+		x.append(sf::Vertex{ Utility::tileToWorldCoords(tileCoords), sf::Color(220, 100, 100, 200) });
+		x.append(sf::Vertex{ Utility::tileToWorldCoords(tileCoords) + sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE), sf::Color(220, 100, 100, 200) });
+		x.append(sf::Vertex{ Utility::tileToWorldCoords(tileCoords) + sf::Vector2f(TileMap::TILE_SIZE, 0.f), sf::Color(220, 100, 100, 200) });
+		x.append(sf::Vertex{ Utility::tileToWorldCoords(tileCoords) + sf::Vector2f(0.f, TileMap::TILE_SIZE), sf::Color(220, 100, 100, 200) });
+		window.draw(x);
+		enemyPatrolPositionPreview.setFillColor(sf::Color(220, 100, 100, 100));
+		enemyPatrolPositionPreview.setOutlineColor(sf::Color(220, 100, 100, 200));
+		enemyPatrolPositionPreview.setOutlineThickness(2.f);
+		window.draw(enemyPatrolPositionPreview);
+	}
 }
 
 void EditorState::renderEnemyPalette(sf::RenderWindow& window)
 {
 	if (mode != Mode::ENEMIES)
 		return;
+	
+	for (size_t i = 0; i < enemyPalette.size(); ++i)
+	{
+		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
+		shape.setPosition({ toolOffset.x + i * 60.f, toolOffset.y });
+		shape.setFillColor(Enemy::getColor(static_cast<Enemy::Type>(i)));
+
+		if (i == selectedEnemyIndex)
+		{
+			shape.setOutlineThickness(2.f);
+			shape.setOutlineColor(sf::Color::White);
+		}
+		window.draw(shape);
+	}
 
 	enemyPaletteText.setOrigin({ enemyPaletteText.getGlobalBounds().size.x / 2.f, enemyPaletteText.getGlobalBounds().size.y / 2.f });
 	enemyPaletteText.setPosition({ toolOffset.x + 110.f/*(enemies.size() * 60.f) / 2.f - 10.f*/, enemyPaletteText.getGlobalBounds().size.y });

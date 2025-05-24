@@ -21,6 +21,11 @@ class TileMap : public sf::Drawable, public sf::Transformable
 public:
 	TileMap(int width, int height);
 
+	inline static constexpr sf::Vector2f getTileCenter(sf::Vector2i coords)
+	{
+		return sf::Vector2f(coords.x * TILE_SIZE + TILE_SIZE / 2.f, coords.y * TILE_SIZE + TILE_SIZE / 2.f);
+	}
+
 	bool saveToJson(const std::string& filename) const;
 	bool loadFromJson(const std::string& filename);
 

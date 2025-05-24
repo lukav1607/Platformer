@@ -9,6 +9,7 @@
 
 #include <map>
 #include <random>
+#include <cmath>
 #include "Utility.hpp"
 #include "../world/TileMap.hpp"
 
@@ -42,6 +43,20 @@ float Utility::randomPitch(float variationPercent, float basePitch)
 
 	float randomFactor = dist(gen);
 	return basePitch + randomFactor * 2.0f * variationPercent;
+}
+
+std::uint8_t Utility::getBreathingAlpha(float timeSeconds, std::uint8_t minAlpha, std::uint8_t maxAlpha, float cycleDuration)
+{
+	float halfCycle = cycleDuration / 2.0f;
+	float t = std::fmod(timeSeconds, cycleDuration);
+
+	float phaseT = (t < halfCycle)
+		? (t / halfCycle)                                  // 0 to 1
+		: (1.0f - ((t - halfCycle) / halfCycle));          // 1 to 0
+
+	float eased = -(std::cos(phaseT * 3.14159265f) - 1.f) / 2.f;
+
+	return static_cast<std::uint8_t>(minAlpha + eased * (maxAlpha - minAlpha));
 }
 
 sf::Vector2f Utility::interpolate(sf::Vector2f a, sf::Vector2f b, float factor)

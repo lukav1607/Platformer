@@ -23,6 +23,9 @@ namespace Utility
 	// Example use: variationPercent 0.15f == 15% variation
 	float randomPitch(float variationPercent, float basePitch = 1.f);
 
+	// Calculates a breathing alpha value based on the time elapsed.
+	std::uint8_t getBreathingAlpha(float timeSeconds, std::uint8_t minAlpha, std::uint8_t maxAlpha, float cycleDuration = 2.5f);
+
 	// Interpolates between two vectors based on a given factor (0.0 to 1.0).
 	sf::Vector2f interpolate(sf::Vector2f a, sf::Vector2f b, float factor);
 

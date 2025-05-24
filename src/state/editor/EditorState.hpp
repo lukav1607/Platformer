@@ -69,13 +69,11 @@ private:
 	void handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
 	void renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderEnemyPalette(sf::RenderWindow& window);
-	enum class Enemies
-	{
-		ENEMY_1
-	};
-	std::vector<Enemies> enemyPalette;
+	std::vector<Enemy::Type> enemyPalette;
 	unsigned selectedEnemyIndex;
 	sf::Text enemyPaletteText;
+	Enemy currentEnemy;
+	//std::vector<sf::Vector2i> currentEnemyPatrolPositions;
 
 	void rebuildGridLines();
 	void renderGrid(sf::RenderWindow& window);

@@ -41,7 +41,7 @@ void PlayState::update(float fixedTimeStep)
 	player.update(fixedTimeStep, map);
 
 	for (auto& enemy : enemies)
-		enemy.update(fixedTimeStep, map);
+		enemy.update(fixedTimeStep, map, player.getLogicPositionCenter());
 
 	camera.update(fixedTimeStep, player);
 }

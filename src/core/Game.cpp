@@ -10,7 +10,10 @@
 #include <algorithm>
 #include <SFML/Graphics.hpp>
 #include "Game.hpp"
+#include "Utility.hpp"
 #include "../state/game/PlayState.hpp"
+
+bool Game::m_isDebugModeOn = false; // Static member variable initialization
 
 Game::Game() :
 	isOutOfFocus(false),
@@ -75,6 +78,9 @@ void Game::processInput()
 	// Ignore input if the window is out of focus
 	if (isOutOfFocus)
 		return;
+
+	if (Utility::isKeyReleased(sf::Keyboard::Key::F3))
+		m_isDebugModeOn = !m_isDebugModeOn;
 
 	// Process input for the current (topmost) state
 	stateManager.processInput(window, events);

@@ -13,6 +13,7 @@
 
 #include <vector>
 #include <SFML/Graphics/Font.hpp>
+#include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 #include "../../world/TileMap.hpp"
 
@@ -40,7 +41,7 @@ public:
 	Enemy();
 	Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*, sf::Vector2f size, sf::Color color, int health, bool isPassive*/);
 
-	void update(float fixedTimeStep, const TileMap& tileMap);
+	void update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
 	void render(sf::RenderWindow& window, float interpolationFactor);
 	void renderPatrolPositions(sf::RenderWindow& window, sf::Font& font);
 
@@ -59,16 +60,21 @@ public:
 	//bool isAtPatrolTarget() const;
 
 	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, size); }
-	inline sf::Vector2f getCenter() const { return currentPosition + size / 2.f; }
+	inline sf::Vector2f getLogicPositionCenter() const { return currentPosition + sf::Vector2f(size.x / 2.f, size.y / 2.f); }
 	inline bool isAlive() const { return health > 0; }
 
 private:
-	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
+	void updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
+	void updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition);
 
 	void initializePatrolPositions();
 	sf::Vector2i getNextPatrolTarget() const;
 
-	const float MOVE_SPEED = 100.f;
+	void moveTowards(sf::Vector2f target, float fixedTimeStep);
+	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
+
+	const float PATROL_SPEED = 75.f;
+	const float CHASE_SPEED = 125.f;
 	const float GRAVITY = 1500.f;
 	const float MAX_FALL_SPEED = 500.f;
 
@@ -79,19 +85,29 @@ private:
 	bool isCompleted;
 	int health;
 	bool isAggroed;
+	bool isReturningToPatrol;
 	float aggroRange;
+	float followRange;
 
 	std::vector<sf::Vector2i> patrolPositions;
-	sf::Vector2i currentTargetTile;
-	sf::Vector2f currentTargetPixels;
+	sf::Vector2i currentPatrolTargetTile;
+	sf::Vector2f currentPatrolTargetPixels;
 
 	sf::Vector2f currentPosition;
 	sf::Vector2f previousPosition;
-	sf::Vector2f direction;
+	sf::Vector2f positionBeforeAggro;
+	//sf::Vector2f direction;
 	sf::Vector2f velocity;
 	bool isOnGround;
 
 	sf::RectangleShape shape;
 	sf::Vector2f size;
 	sf::Color color;
+
+	// DEBUG
+	sf::CircleShape d_patrolTargetCircle;
+	sf::CircleShape d_aggroRangeCircle;
+	sf::CircleShape d_positionBeforeAggroCircle;
+	sf::CircleShape d_followRangeCircle;
+	sf::VertexArray d_lineOfSightLine;
 };

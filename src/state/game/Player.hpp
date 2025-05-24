@@ -32,6 +32,7 @@ public:
 	inline sf::Vector2f getVelocity() const { return velocity; }
 	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, currentSize); }
 	inline sf::Vector2f getSize() const { return currentSize; }
+	inline sf::Vector2f getLogicPositionCenter() const { return currentPosition + sf::Vector2f(currentSize.x / 2.f, currentSize.y / 2.f); }
 	inline sf::Color getColor() const { return color; }
 	inline bool isLookingUp() const { return m_isLookingUp; }
 	inline bool isLookingDown() const { return m_isLookingDown; }

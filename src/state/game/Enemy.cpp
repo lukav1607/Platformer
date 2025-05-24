@@ -10,11 +10,11 @@
 #include <iostream>
 #include <algorithm>
 #include <string>
-#include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/VertexArray.hpp>
 #include <SFML/Graphics/Vertex.hpp>
 #include <SFML/Graphics/Text.hpp>
 #include "Enemy.hpp"
+#include "../../core/Game.hpp"
 #include "../../core/Utility.hpp"
 
 std::vector<sf::Vector2i> Enemy::usedPatrolPositions;
@@ -24,15 +24,18 @@ Enemy::Enemy() :
 	type(Type::Crawling),
 	health(0),
 	isAggroed(false),
+	isReturningToPatrol(false),
 	isOnGround(false),
 	aggroRange(0.f),
-	currentTargetTile(0, 0),
+	followRange(0.f),
+	currentPatrolTargetTile(0, 0),
 	isCompleted(false)
 {}
 
 Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*sf::Vector2f size, sf::Color color, int health, bool isPassive*/) :
 	type(type),
 	isAggroed(false),
+	isReturningToPatrol(false),
 	patrolPositions(patrolPositions),
 	isOnGround(false),
 	isCompleted(true)
@@ -42,20 +45,41 @@ Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*sf::Vector2f 
 	case Type::Crawling:
 		size = { 32.f, 16.f };
 		health = 2;
-		aggroRange = 0;
 		break;
 	case Type::Walking:
-		size = { 30.f, 40.f };
+		size = { 32.f, 48.f };
 		health = 3;
-		aggroRange = 500;
+		aggroRange = 300;
+		followRange = 600;
 		break;
 	case Type::Flying:
-		size = { 28.f, 28.f };
+		size = { 32.f, 32.f };
 		health = 2;
-		aggroRange = 600;
+		aggroRange = 400;
+		followRange = 700;
 		break;
 	}
 	color = getColor(type);
+
+	d_patrolTargetCircle.setRadius(5.f);
+	d_patrolTargetCircle.setFillColor(sf::Color(255, 0, 0, 100));
+	d_patrolTargetCircle.setOutlineColor(sf::Color::Red);
+	d_patrolTargetCircle.setOutlineThickness(1.f);
+
+	d_aggroRangeCircle.setRadius(aggroRange);
+	d_aggroRangeCircle.setFillColor(sf::Color(255, 0, 0, 5));
+	d_aggroRangeCircle.setOutlineColor(sf::Color::Red);
+	d_aggroRangeCircle.setOutlineThickness(1.f);
+
+	d_positionBeforeAggroCircle.setRadius(5.f);
+	d_positionBeforeAggroCircle.setFillColor(sf::Color(255, 255, 0, 100));
+	d_positionBeforeAggroCircle.setOutlineColor(sf::Color::Yellow);
+	d_positionBeforeAggroCircle.setOutlineThickness(1.f);
+
+	d_followRangeCircle.setRadius(followRange);
+	d_followRangeCircle.setFillColor(sf::Color(255, 255, 0, 5));
+	d_followRangeCircle.setOutlineColor(sf::Color::Yellow);
+	d_followRangeCircle.setOutlineThickness(1.f);
 
 	//aggroRange = isPassive ? 0.f : 500.f;
 	shape.setSize(size);
@@ -66,55 +90,43 @@ Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*sf::Vector2f 
 	initializePatrolPositions();
 }
 
-void Enemy::update(float fixedTimeStep, const TileMap& tileMap)
+void Enemy::update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition)
 {
 	switch (type)
 	{
-	case Type::Crawling:
+	case Type::Flying:
+		updateFlying(fixedTimeStep, tileMap, playerPosition);
 		break;
 
 	case Type::Walking:
 		break;
-
-	case Type::Flying:
-		/*sf::Vector2f */currentTargetPixels = TileMap::getTileCenter(currentTargetTile) - size / 2.f;
-		sf::Vector2f direction = currentTargetPixels - currentPosition;
-
-		float distance = std::hypotf(direction.x, direction.y);
-		//float step = MOVE_SPEED * fixedTimeStep;
-
-		if (distance <= MOVE_SPEED * fixedTimeStep)
-		{
-			//currentPosition = currentTargetPixels;
-			currentTargetTile = getNextPatrolTarget();
-			//velocity = { 0.f, 0.f };
-		}
-		else
-		{
-			/*direction /= distance;
-			velocity = direction * step;*/
-		}
-		if (distance != 0.f)
-			direction /= distance;
-		velocity = direction * MOVE_SPEED;
+	case Type::Crawling:
 		break;
 	}
-	//previousPosition = currentPosition;
-	//currentPosition += velocity * fixedTimeStep;
+
 	resolveCollisions(fixedTimeStep, tileMap);
+
+	if (Game::isDebugModeOn())
+		updateDebugVisuals(tileMap, playerPosition);
 }
 
 void Enemy::render(sf::RenderWindow& window, float interpolationFactor)
 {
-	sf::CircleShape target(5.f);
-	target.setFillColor(sf::Color::Transparent);
-	target.setOutlineColor(sf::Color::Red);
-	target.setOutlineThickness(1.f);
-	target.setPosition(currentTargetPixels);
-	window.draw(target);
-
 	shape.setPosition(Utility::interpolate(previousPosition, currentPosition, interpolationFactor));
 	window.draw(shape);
+
+	if (Game::isDebugModeOn())
+	{
+		window.draw(d_lineOfSightLine);
+		window.draw(d_patrolTargetCircle);
+		window.draw(d_aggroRangeCircle);
+
+		if (isAggroed || isReturningToPatrol)
+		{
+			window.draw(d_positionBeforeAggroCircle);
+			window.draw(d_followRangeCircle);
+		}
+	}
 }
 
 void Enemy::renderPatrolPositions(sf::RenderWindow& window, sf::Font& font)
@@ -239,17 +251,8 @@ void Enemy::removePatrolPosition(sf::Vector2i tileCoords)
 
 void Enemy::applyHit(float damage, sf::Vector2f knockback)
 {
-}
 
-//bool Enemy::isAtPatrolTarget() const
-//{
-//	sf::Vector2f position = Utility::tileToWorldCoords(currentPatrolTarget) + sf::Vector2f(TileMap::TILE_SIZE / 2.f - 2.f, TileMap::TILE_SIZE / 2.f - 2.f);
-//	sf::FloatRect bounds(position, { 4.f, 4.f });
-//
-//	if (bounds.findIntersection(getBounds()).has_value())
-//		return true;
-//	return false;
-//}
+}
 
 void Enemy::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 {
@@ -345,6 +348,69 @@ void Enemy::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 	currentPosition = futurePosition;
 }
 
+void Enemy::updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition)
+{
+	sf::Vector2f center = getLogicPositionCenter();
+	float distToPlayer = std::hypotf(playerPosition.x - center.x, playerPosition.y - center.y);
+
+	if (isAggroed)
+	{
+		float distToReturn = std::hypotf(positionBeforeAggro.x - center.x, positionBeforeAggro.y - center.y);
+
+		if (distToReturn > followRange)
+		{
+			isAggroed = false;
+			isReturningToPatrol = true;
+			return;
+		}
+
+		moveTowards(playerPosition, fixedTimeStep);
+		return;
+	}
+
+	if (isReturningToPatrol)
+	{
+		float distToReturn = std::hypotf(positionBeforeAggro.x - center.x, positionBeforeAggro.y - center.y);
+
+		if (distToReturn <= CHASE_SPEED * fixedTimeStep)
+			isReturningToPatrol = false;
+		else
+			moveTowards(positionBeforeAggro, fixedTimeStep);
+		return;
+	}
+
+	// Patrolling
+	currentPatrolTargetPixels = TileMap::getTileCenter(currentPatrolTargetTile);
+	float distToPatrolTarget = std::hypotf(currentPatrolTargetPixels.x - center.x, currentPatrolTargetPixels.y - center.y);
+
+	if (distToPatrolTarget <= PATROL_SPEED * fixedTimeStep)
+		currentPatrolTargetTile = getNextPatrolTarget();
+
+	if (distToPlayer < aggroRange && Utility::hasLineOfSight(center, playerPosition, tileMap))
+	{
+		isAggroed = true;
+		positionBeforeAggro = currentPosition + size / 2.f;
+		d_positionBeforeAggroCircle.setPosition(positionBeforeAggro - sf::Vector2f(d_positionBeforeAggroCircle.getRadius(), d_positionBeforeAggroCircle.getRadius()));
+	}
+	else
+	{
+		moveTowards(currentPatrolTargetPixels, fixedTimeStep);
+	}
+}
+
+void Enemy::updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition)
+{
+	bool hasLineOfSight = Utility::hasLineOfSight(getLogicPositionCenter(), playerPosition, tileMap);
+	sf::Color lineColor = hasLineOfSight ? sf::Color::Green : sf::Color::Red;
+	d_lineOfSightLine = sf::VertexArray(sf::PrimitiveType::Lines, 2);
+	d_lineOfSightLine.append(sf::Vertex{ getLogicPositionCenter(), lineColor });
+	d_lineOfSightLine.append(sf::Vertex{ playerPosition, lineColor });
+
+	d_patrolTargetCircle.setPosition(currentPatrolTargetPixels - sf::Vector2f(d_patrolTargetCircle.getRadius(), d_patrolTargetCircle.getRadius()));
+	d_aggroRangeCircle.setPosition(getLogicPositionCenter() - sf::Vector2f(aggroRange, aggroRange));
+	d_followRangeCircle.setPosition(positionBeforeAggro - sf::Vector2f(followRange, followRange));
+}
+
 void Enemy::initializePatrolPositions()
 {
 	if (this->patrolPositions.empty())
@@ -354,9 +420,9 @@ void Enemy::initializePatrolPositions()
 	}
 
 	if (this->patrolPositions.size() > 1)
-		currentTargetTile = this->patrolPositions.at(1);
+		currentPatrolTargetTile = this->patrolPositions.at(1);
 	else
-		currentTargetTile = this->patrolPositions.at(0);
+		currentPatrolTargetTile = this->patrolPositions.at(0);
 
 	switch (type)
 	{
@@ -375,12 +441,28 @@ void Enemy::initializePatrolPositions()
 
 sf::Vector2i Enemy::getNextPatrolTarget() const
 {
-	if (currentTargetTile == patrolPositions.back())
+	if (currentPatrolTargetTile == patrolPositions.back())
 		return patrolPositions.front();
 	for (int i = 0; i < patrolPositions.size() - 1; ++i)
 	{
-		if (currentTargetTile == patrolPositions.at(i))
+		if (currentPatrolTargetTile == patrolPositions.at(i))
 			return patrolPositions.at(i + 1);
 	}
-	return currentTargetTile;
+	return currentPatrolTargetTile;
+}
+
+void Enemy::moveTowards(sf::Vector2f target, float fixedTimeStep)
+{
+	sf::Vector2f direction = target - getLogicPositionCenter();
+	float distance = std::hypotf(direction.x, direction.y);
+
+	if (distance != 0.f)
+	{
+		direction /= distance;
+		velocity = direction * std::min(isAggroed || isReturningToPatrol ? CHASE_SPEED : PATROL_SPEED, distance / fixedTimeStep);
+	}
+	else
+	{
+		velocity = { 0.f, 0.f }; // Already at target
+	}
 }

@@ -72,6 +72,31 @@ sf::Vector2f Utility::normalize(sf::Vector2f vector)
 	return vector / length;
 }
 
+bool Utility::hasLineOfSight(sf::Vector2f from, sf::Vector2f to, const TileMap& tileMap)
+{
+	sf::Vector2f delta = to - from;
+	float distance = std::hypotf(delta.x, delta.y);
+	if (distance < 1.f)
+		return true; // Too close to check, assume line of sight
+
+	sf::Vector2f direction = delta / distance;
+	float stepSize = TileMap::TILE_SIZE / 2.f; // Check every half tile
+	sf::Vector2f currentPosition = from;
+
+	float traveled = 0.f;
+	while (traveled < distance)
+	{
+		sf::Vector2i tile = worldToTileCoords(currentPosition);
+		if (!tileMap.isWithinBounds(tile) || tileMap.getTile(tile).type == Tile::Type::Solid)
+		{
+			return false; // Hit a solid tile
+		}
+		currentPosition += direction * stepSize;
+		traveled += stepSize;
+	}
+	return true;
+}
+
 sf::Vector2i Utility::worldToTileCoords(sf::Vector2f worldPos)
 {
 	return 

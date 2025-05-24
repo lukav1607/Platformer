@@ -20,12 +20,16 @@ public:
 	Game();
 	int run();
 
+	static bool isDebugModeOn() { return m_isDebugModeOn; }
+
 private:
 	const std::string PROJECT_NAME = "Platformer";
 
 	void processInput();
 	void update(float fixedTimeStep);
 	void render(float interpolationFactor);
+
+	static bool m_isDebugModeOn;
 
 	sf::RenderWindow window;
 	StateManager stateManager;

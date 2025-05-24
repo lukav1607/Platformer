@@ -13,6 +13,7 @@
 #include <SFML/Window/Keyboard.hpp>
 #include <SFML/Window/Mouse.hpp>
 #include <SFML/System/Vector2.hpp>
+#include "../world/TileMap.hpp"
 
 namespace Utility
 {
@@ -31,6 +32,9 @@ namespace Utility
 
 	// Normalizes a vector to a unit length.
 	sf::Vector2f normalize(sf::Vector2f vector);
+
+	// Check if there is a line of sight between two points, considering tile collisions.
+	bool hasLineOfSight(sf::Vector2f from, sf::Vector2f to, const TileMap& tileMap);
 
 	// Converts world pixel position to tile coordinates.
 	sf::Vector2i worldToTileCoords(sf::Vector2f worldPos);

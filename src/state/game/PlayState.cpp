@@ -12,6 +12,7 @@
 #include "../StateManager.hpp"
 #include "../editor/EditorState.hpp"
 #include "../../core/Utility.hpp"
+#include "../../core/Game.hpp"
 
 PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window, sf::Font& font) :
 	State(stateManager),
@@ -32,6 +33,8 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 			enemy.equalizePositions();
 		stateManager.push(std::make_unique<EditorState>(stateManager, *this, map, player, enemies, font));
 	}
+	//else if (Utility::isKeyReleased(sf::Keyboard::Key::F3))
+	//	map.setIsGridShown(Game::isDebugModeOn());
 
 	player.processInput(window, events);
 }
@@ -55,10 +58,13 @@ void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
 
 	player.render(window, interpolationFactor);
 	for (auto& enemy : enemies)
-		enemy.render(window, interpolationFactor);
+		enemy.render(window, font, interpolationFactor);
 
 	map.drawTransparentOnly = true;
 	window.draw(map);
+
+	map.setIsGridShown(Game::isDebugModeOn());
+	map.renderGrid(window);
 }
 
 void PlayState::applyView(sf::RenderWindow& window)

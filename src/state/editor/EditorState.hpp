@@ -75,11 +75,11 @@ private:
 	Enemy currentEnemy;
 	//std::vector<sf::Vector2i> currentEnemyPatrolPositions;
 
-	void rebuildGridLines();
-	void renderGrid(sf::RenderWindow& window);
-	sf::VertexArray gridLines;
-	sf::Color gridColor;
-	bool isGridShown;
+	//void rebuildGridLines();
+	//void renderGrid(sf::RenderWindow& window);
+	//sf::VertexArray gridLines;
+	//sf::Color gridColor;
+	//bool isGridShown;
 
 	void handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
 

@@ -32,6 +32,11 @@ public:
 	void resize(int width, int height);
 	inline sf::Vector2i getSize() const { return sf::Vector2i(tiles[0].size(), tiles.size()); }
 
+	void toggleGrid() { isGridShown = !isGridShown; }
+	void setIsGridShown(bool isShown) { isGridShown = isShown; }
+	void rebuildGridLines();
+	void renderGrid(sf::RenderWindow& window);
+
 	void rebuildVisuals();
 	void setTile(int x, int y, Tile tile, bool shouldRebuildVisuals = true);
 	inline void setTile(sf::Vector2i coords, Tile tile, bool shouldRebuildVisuals = true) { setTile(coords.x, coords.y, tile, shouldRebuildVisuals); }
@@ -47,6 +52,10 @@ public:
 
 private:
 	virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const override;
+
+	bool isGridShown;
+	sf::VertexArray gridLines;
+	sf::Color gridColor;
 
 	std::vector<std::vector<Tile>> tiles;
 	std::vector<sf::RectangleShape> visuals;

@@ -34,9 +34,13 @@
 
 using json = nlohmann::json;
 
-TileMap::TileMap(int width, int height)
+TileMap::TileMap(int width, int height) :
+	gridLines(sf::PrimitiveType::Lines),
+	gridColor(sf::Color(255, 255, 255, 50)),
+	isGridShown(false)
 {
 	resize(width, height);
+	rebuildGridLines();
 }
 
 bool TileMap::saveToJson(const std::string& filename) const
@@ -125,6 +129,39 @@ bool TileMap::loadFromJson(const std::string& filename)
 		return false;
 	}
 	return true;
+}
+
+void TileMap::rebuildGridLines()
+{
+	gridLines.clear();
+
+	//	Vertical lines:
+	for (int x = 0; x <= getSize().x; ++x)
+	{
+		float xpos = static_cast<float>(x * TileMap::TILE_SIZE);
+		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, 0.f) }, gridColor });
+		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, getSize().y * TileMap::TILE_SIZE) }, gridColor });
+	}
+	//	Horizontal lines:
+	for (int y = 0; y <= getSize().y; ++y)
+	{
+		float ypos = static_cast<float>(y * TileMap::TILE_SIZE);
+		gridLines.append(sf::Vertex{ { sf::Vector2f(0.f, ypos) }, gridColor });
+		gridLines.append(sf::Vertex{ { sf::Vector2f(getSize().x * TileMap::TILE_SIZE, ypos)}, gridColor });
+	}
+}
+
+void TileMap::renderGrid(sf::RenderWindow& window)
+{
+	if (!isGridShown)
+		return;
+
+	sf::RectangleShape border(sf::Vector2f(getSize().x * TileMap::TILE_SIZE, getSize().y * TileMap::TILE_SIZE));
+	border.setFillColor(sf::Color::Transparent);
+	border.setOutlineThickness(2.f);
+	border.setOutlineColor(sf::Color(255, 255, 255, 128));
+	window.draw(border);
+	window.draw(gridLines);
 }
 
 void TileMap::rebuildVisuals()

@@ -16,6 +16,7 @@
 #include "Enemy.hpp"
 #include "../../core/Game.hpp"
 #include "../../core/Utility.hpp"
+#include "../../world/Pathfinding.hpp"
 
 std::vector<sf::Vector2i> Enemy::usedPatrolPositions;
 sf::Clock Enemy::clock;
@@ -29,16 +30,30 @@ Enemy::Enemy() :
 	aggroRange(0.f),
 	followRange(0.f),
 	currentPatrolTargetTile(0, 0),
-	isCompleted(false)
+	isCompleted(false),
+	currentPathfindingIndex(0),
+	timeSinceLastPathUpdate(0.f),
+	//lastPathfindingTarget(-1, -1),
+	stuckTimer(0.f),
+	//stuckCounter(0),
+	//stuckLastPosition(currentPosition),
+	//losChecker(0.f, 0.f),
+	losTimer(0.f)
 {}
 
-Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*sf::Vector2f size, sf::Color color, int health, bool isPassive*/) :
+Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type) :
 	type(type),
 	isAggroed(false),
 	isReturningToPatrol(false),
 	patrolPositions(patrolPositions),
 	isOnGround(false),
-	isCompleted(true)
+	isCompleted(true),
+	currentPathfindingIndex(0),
+	timeSinceLastPathUpdate(0.f),
+	//lastPathfindingTarget(-1, -1),
+	stuckTimer(0.f),
+	//stuckCounter(0),
+	losTimer(0.f)
 {
 	switch (type)
 	{
@@ -59,6 +74,9 @@ Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*sf::Vector2f 
 		followRange = 700;
 		break;
 	}
+
+	//losChecker.clearanceThreshold = size.x * 1.5f; // Clearance for line of sight checks
+
 	color = getColor(type);
 
 	d_patrolTargetCircle.setRadius(5.f);
@@ -88,6 +106,7 @@ Enemy::Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*sf::Vector2f 
 	for (const auto& patrolPosition : patrolPositions)
 		usedPatrolPositions.push_back(patrolPosition);
 	initializePatrolPositions();
+	//stuckLastPosition = currentPosition;
 }
 
 void Enemy::update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition)
@@ -110,13 +129,25 @@ void Enemy::update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f pla
 		updateDebugVisuals(tileMap, playerPosition);
 }
 
-void Enemy::render(sf::RenderWindow& window, float interpolationFactor)
+void Enemy::render(sf::RenderWindow& window, sf::Font& font, float interpolationFactor)
 {
 	shape.setPosition(Utility::interpolate(previousPosition, currentPosition, interpolationFactor));
 	window.draw(shape);
 
 	if (Game::isDebugModeOn())
 	{
+		for (int i = 0; i < currentPathfindingPath.size(); ++i)
+		{
+			sf::Text nodeText(font, std::to_string(i), 18);
+			nodeText.setFillColor(sf::Color::White);
+			nodeText.setPosition(
+				Utility::tileToWorldCoords(
+					currentPathfindingPath.at(i)) + 
+				sf::Vector2f(TileMap::TILE_SIZE / 2.f - nodeText.getGlobalBounds().size.x / 2.f,
+					TileMap::TILE_SIZE / 2.f - nodeText.getGlobalBounds().size.y / 2.f));
+			window.draw(nodeText);
+		}
+
 		window.draw(d_lineOfSightLine);
 		window.draw(d_patrolTargetCircle);
 		window.draw(d_aggroRangeCircle);
@@ -350,6 +381,8 @@ void Enemy::resolveCollisions(float fixedTimeStep, const TileMap& tileMap)
 
 void Enemy::updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition)
 {
+	timeSinceLastPathUpdate += fixedTimeStep;
+
 	sf::Vector2f center = getLogicPositionCenter();
 	float distToPlayer = std::hypotf(playerPosition.x - center.x, playerPosition.y - center.y);
 
@@ -359,12 +392,32 @@ void Enemy::updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector
 
 		if (distToReturn > followRange)
 		{
+			losTimer = 0.f;
 			isAggroed = false;
 			isReturningToPatrol = true;
+			currentPathfindingPath.clear();
 			return;
 		}
 
-		moveTowards(playerPosition, fixedTimeStep);
+		if (Utility::hasLineOfSight(center, playerPosition, tileMap))
+			losTimer += fixedTimeStep;
+		else
+			losTimer = 0.f;
+
+		if (losTimer >= LOS_THRESHOLD)
+		{
+			currentPathfindingPath.clear();
+			moveTowards(playerPosition, fixedTimeStep);
+		}
+		else
+		{
+			if (timeSinceLastPathUpdate >= PATH_UPDATE_INTERVAL)
+			{
+				updatePathfinding(tileMap, playerPosition, fixedTimeStep);
+				timeSinceLastPathUpdate = 0.f;
+			}
+			followPath(tileMap, /*playerPosition, */fixedTimeStep);
+		}
 		return;
 	}
 
@@ -373,9 +426,30 @@ void Enemy::updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector
 		float distToReturn = std::hypotf(positionBeforeAggro.x - center.x, positionBeforeAggro.y - center.y);
 
 		if (distToReturn <= CHASE_SPEED * fixedTimeStep)
+		{
 			isReturningToPatrol = false;
+			losTimer = 0.f;
+		}
+
+		if (Utility::hasLineOfSight(center, positionBeforeAggro, tileMap))
+			losTimer += fixedTimeStep;
 		else
+			losTimer = 0.f;
+
+		if (losTimer >= LOS_THRESHOLD)
+		{
+			currentPathfindingPath.clear();
 			moveTowards(positionBeforeAggro, fixedTimeStep);
+		}
+		else
+		{
+			if (timeSinceLastPathUpdate >= PATH_UPDATE_INTERVAL)
+			{
+				updatePathfinding(tileMap, positionBeforeAggro, fixedTimeStep);
+				timeSinceLastPathUpdate = 0.f;
+			}
+			followPath(tileMap, /*positionBeforeAggro, */fixedTimeStep);
+		}
 		return;
 	}
 
@@ -410,6 +484,208 @@ void Enemy::updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPositi
 	d_aggroRangeCircle.setPosition(getLogicPositionCenter() - sf::Vector2f(aggroRange, aggroRange));
 	d_followRangeCircle.setPosition(positionBeforeAggro - sf::Vector2f(followRange, followRange));
 }
+
+void Enemy::updatePathfinding(const TileMap& tileMap, sf::Vector2f target, float fixedTimeStep)
+{
+	sf::Vector2i start = Utility::worldToTileCoords(getLogicPositionCenter());
+	sf::Vector2i goal = Utility::worldToTileCoords(target);
+
+	if (!currentPathfindingPath.empty() && goal == currentPathfindingPath.back())
+		return; // Already at the goal
+
+	using namespace Pathfinding;
+	//lastPathfindingTarget = goal;
+	currentPathfindingPath = findPathAStar(tileMap, start, goal, Heuristic::Euclidean);
+	smoothPath(tileMap, fixedTimeStep);
+	currentPathfindingIndex = 0;
+}
+
+void Enemy::followPath(const TileMap& tileMap, /*sf::Vector2f target, */float fixedTimeStep)
+{
+	//const float NODE_REACH_EPSILON = CHASE_SPEED * 1.5f / 60.f; // adjust for frame rate
+	//const float STUCK_TIMEOUT = 0.75f;
+	//const float STUCK_EPSILON = 2.f; // distance threshold for stuck detection
+
+	//if (currentPathfindingPath.empty() || currentPathfindingIndex >= currentPathfindingPath.size())
+	//{
+	//	velocity = { 0.f, 0.f };
+	//	return;
+	//}
+
+	//sf::Vector2f currentTarget = TileMap::getTileCenter(currentPathfindingPath[currentPathfindingIndex]);
+	//moveTowards(currentTarget, fixedTimeStep);
+
+	//sf::Vector2f center = getLogicPositionCenter();
+	//float dist = std::hypot(currentTarget.x - center.x, currentTarget.y - center.y);
+
+	//// Progress check
+	//if (dist <= NODE_REACH_EPSILON)
+	//{
+	//	currentPathfindingIndex++;
+	//	stuckTimer = 0.f;
+	//	lastPosition = center;
+	//}
+	//else
+	//{
+	//	float moved = std::hypotf(center.x - lastPosition.x, center.y - lastPosition.y);
+	//	if (moved <= STUCK_EPSILON)
+	//	{
+	//		stuckTimer += fixedTimeStep;
+	//		if (stuckTimer > STUCK_TIMEOUT)
+	//		{
+	//			bool wasDetourInserted = tryInsertDetourNode(tileMap);
+	//			if (wasDetourInserted)
+	//			{
+	//				stuckTimer = 0.f;
+	//				return; // Detour inserted, no need to fallback
+	//			}
+
+	//			updatePathfinding(tileMap, target, fixedTimeStep); // fallback full A*
+	//			stuckTimer = 0.f;
+	//			return;
+	//		}
+	//	}
+	//	else
+	//	{
+	//		stuckTimer = 0.f;
+	//		lastPosition = center;
+	//	}
+	//}
+
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	if (currentPathfindingPath.empty() || currentPathfindingIndex >= currentPathfindingPath.size())
+	{
+		velocity = { 0.f, 0.f };
+		return; // No path to follow or index out of bounds
+	}
+
+	sf::Vector2f center = getLogicPositionCenter();
+	sf::Vector2f target = TileMap::getTileCenter(currentPathfindingPath.at(currentPathfindingIndex));
+	float dist = std::hypotf(target.x - center.x, target.y - center.y);
+
+	//constexpr float NODE_REACH_EPSILON = 4.f;
+	if (dist <= CHASE_SPEED * fixedTimeStep/* ||
+		dist <= TileMap::TILE_SIZE * 0.25f ||
+		dist <= NODE_REACH_EPSILON*/)
+	{
+		currentPathfindingIndex++;
+		if (currentPathfindingIndex >= currentPathfindingPath.size())
+		{
+			velocity = { 0.f, 0.f }; // Reached the end of the path
+			return;
+		}
+
+		target = TileMap::getTileCenter(currentPathfindingPath.at(currentPathfindingIndex));
+	}
+	moveTowards(target, fixedTimeStep);
+}
+
+void Enemy::smoothPath(const TileMap& tileMap, float fixedTimeStep)
+{
+	//if (currentPathfindingPath.size() < 2) return;
+
+	//std::vector<sf::Vector2i> smoothed;
+	//sf::Vector2i current = currentPathfindingPath.front();
+	//smoothed.push_back(current);
+
+	//for (std::size_t i = 1; i < currentPathfindingPath.size(); ++i)
+	//{
+	//	sf::Vector2f start = TileMap::getTileCenter(current);
+	//	sf::Vector2f goal = TileMap::getTileCenter(currentPathfindingPath[i]);
+
+	//	if (!losChecker.check(start, goal, tileMap))//Utility::hasLineOfSightWithClearance(start, goal, tileMap, size.x * 1.f))
+	//	{
+	//		current = currentPathfindingPath[i - 1];
+	//		smoothed.push_back(current);
+	//	}
+	//}
+
+	//smoothed.push_back(currentPathfindingPath.back());
+	//currentPathfindingPath = std::move(smoothed);
+	//currentPathfindingIndex = 0;
+
+	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	if (currentPathfindingPath.size() <= 2)
+		return; // Already as smooth as it gets
+
+	std::vector<sf::Vector2i> smoothed;
+	std::size_t startIndex = 0;
+
+	while (startIndex < currentPathfindingPath.size() - 1)
+	{
+		// Look as far ahead as possible
+		std::size_t nextIndex = startIndex + 1;
+
+		while (nextIndex < currentPathfindingPath.size() &&
+				!Utility::hasLineOfSight/*WithClearance*/(
+					TileMap::getTileCenter(currentPathfindingPath.at(startIndex)),
+					TileMap::getTileCenter(currentPathfindingPath.at(nextIndex)),
+					tileMap/*,
+					size.x * 0.7f)*/))
+		{
+			++nextIndex;
+		}
+		std::size_t bestIndex = nextIndex > startIndex + 1 ? nextIndex - 1 : startIndex + 1;
+
+		smoothed.push_back(currentPathfindingPath.at(startIndex));
+		startIndex = bestIndex;
+	}
+
+	smoothed.push_back(currentPathfindingPath.back());
+	currentPathfindingPath = smoothed;
+	currentPathfindingIndex = 0;
+}
+
+//bool Enemy::tryInsertDetourNode(const TileMap& tileMap)
+//{
+//	if (currentPathfindingPath.empty() || currentPathfindingIndex >= (int)currentPathfindingPath.size())
+//		return false;
+//
+//	sf::Vector2i currentTarget = currentPathfindingPath[currentPathfindingIndex];
+//
+//	// Directions to try (left, right, up, down)
+//	std::vector<sf::Vector2i> detourOffsets = {
+//		sf::Vector2i(-1, 0),
+//		sf::Vector2i(1, 0),
+//		sf::Vector2i(0, -1),
+//		sf::Vector2i(0, 1)
+//	};
+//
+//	for (auto& offset : detourOffsets) {
+//		sf::Vector2i detourTile = currentTarget + offset;
+//
+//		if (!tileMap.isWithinBounds(detourTile))
+//			continue;
+//
+//		if (tileMap.getTile(detourTile).type == Tile::Type::Solid)
+//			continue;
+//
+//		// Avoid inserting the same detour repeatedly
+//		if (currentPathfindingIndex + 1 < (int)currentPathfindingPath.size() && currentPathfindingPath[currentPathfindingIndex + 1] == detourTile)
+//			continue;
+//
+//		currentPathfindingPath.insert(currentPathfindingPath.begin() + currentPathfindingIndex + 1, detourTile);
+//		return true; // Insert only one detour tile at a time
+//	}
+//	return false; // No valid detour found
+//}
+//
+//bool Enemy::isStuck() {
+//	float distMoved = std::hypotf(currentPosition.x - stuckLastPosition.x, currentPosition.y - stuckLastPosition.y);
+//
+//	if (distMoved < STUCK_DISTANCE_THRESHOLD) {
+//		stuckCounter++;
+//	}
+//	else {
+//		stuckCounter = 0;
+//	}
+//
+//	stuckLastPosition = currentPosition;
+//
+//	return stuckCounter >= STUCK_THRESHOLD_FRAMES;
+//}
 
 void Enemy::initializePatrolPositions()
 {

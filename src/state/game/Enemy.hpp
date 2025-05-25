@@ -16,6 +16,7 @@
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
 #include "../../world/TileMap.hpp"
+#include "../../core/Utility.hpp"
 
 class Enemy
 {
@@ -42,7 +43,7 @@ public:
 	Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*, sf::Vector2f size, sf::Color color, int health, bool isPassive*/);
 
 	void update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
-	void render(sf::RenderWindow& window, float interpolationFactor);
+	void render(sf::RenderWindow& window, sf::Font& font, float interpolationFactor);
 	void renderPatrolPositions(sf::RenderWindow& window, sf::Font& font);
 
 	void setType(Type type) { this->type = type; }
@@ -66,6 +67,12 @@ public:
 private:
 	void updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
 	void updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition);
+
+	void updatePathfinding(const TileMap& tileMap, sf::Vector2f target, float fixedTimeStep);
+	void followPath(const TileMap& tileMap, /*sf::Vector2f target, */float fixedTimeStep);
+	void smoothPath(const TileMap& tileMap, float fixedTimeStep);
+	//bool tryInsertDetourNode(const TileMap& tileMap);
+	//bool isStuck();
 
 	void initializePatrolPositions();
 	sf::Vector2i getNextPatrolTarget() const;
@@ -93,10 +100,24 @@ private:
 	sf::Vector2i currentPatrolTargetTile;
 	sf::Vector2f currentPatrolTargetPixels;
 
+	const float PATH_UPDATE_INTERVAL = 0.3f; // Time in seconds between pathfinding updates
+	float timeSinceLastPathUpdate;
+	float stuckTimer;
+	std::vector<sf::Vector2i> currentPathfindingPath;
+	std::size_t currentPathfindingIndex;
+	//sf::Vector2i lastPathfindingTarget;
+	//sf::Vector2f lastPosition;
+	//Utility::LoSWithHysteresis losChecker;
+	float losTimer;
+	const float LOS_THRESHOLD = 0.3f;
+	//sf::Vector2f stuckLastPosition;
+	//int stuckCounter = 0;
+	//const int STUCK_THRESHOLD_FRAMES = 10;    // Number of frames stuck to trigger detour
+	//const float STUCK_DISTANCE_THRESHOLD = 0.05f; // Distance moved threshold to consider stuck
+
 	sf::Vector2f currentPosition;
 	sf::Vector2f previousPosition;
 	sf::Vector2f positionBeforeAggro;
-	//sf::Vector2f direction;
 	sf::Vector2f velocity;
 	bool isOnGround;
 

@@ -20,6 +20,7 @@ add_executable(
     "src/audio/SoundManager.cpp"
     "src/world/TileMap.cpp"
     "src/world/Tile.cpp"
+    "src/world/Pathfinding.cpp"
     "src/state/StateManager.cpp"
     "src/state/editor/EditorState.cpp"
     "src/state/editor/EditorCamera.cpp"

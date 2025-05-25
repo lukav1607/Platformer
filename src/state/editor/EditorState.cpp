@@ -11,6 +11,7 @@
 #include <algorithm>
 #include "EditorState.hpp"
 #include "../StateManager.hpp"
+#include "../../core/Game.hpp"
 #include "../../core/Utility.hpp"
 
 EditorCamera EditorState::camera;
@@ -45,9 +46,9 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	currentEnemy(),
 	isDrawingSelection(false),
 	selectionAction(SelectionAction::NONE),
-	gridLines(sf::PrimitiveType::Lines),
-	gridColor(sf::Color(255, 255, 255, 64)),
-	isGridShown(true),
+	//gridLines(sf::PrimitiveType::Lines),
+	//gridColor(sf::Color(255, 255, 255, 64)),
+	//isGridShown(true),
 	mode(Mode::TILES),
 	isErasing(false),
 	toolOffset(32.f, 64.f),
@@ -59,7 +60,7 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	mapSavedText(font, "Map saved!", 48U),
 	mapLoadedText(font, "Map loaded!", 48U)
 {
-	rebuildGridLines();
+	//rebuildGridLines();
 
 	playerSpawnShape.setSize(player.getSize());
 	playerSpawnShape.setFillColor(sf::Color::Transparent);
@@ -120,9 +121,10 @@ void EditorState::processInput(const sf::RenderWindow& window, const std::vector
 		break;
 	}
 	
-	// Exit editor state
 	if (Utility::isKeyReleased(sf::Keyboard::Key::F1))
-		stateManager.pop();
+		stateManager.pop(); // Exit editor state
+	//else if (Utility::isKeyReleased(sf::Keyboard::Key::F3))
+	//	map.setIsGridShown(Game::isDebugModeOn());
 }
 
 void EditorState::update(float fixedTimeStep)
@@ -148,7 +150,6 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	window.draw(playerSpawnShape);
 	renderPlayerPreview(window, tileCoords);
 	renderEnemyPreview(window, tileCoords);
-	renderGrid(window);	
 
 	// Draw as overlay/UI
 	window.setView(uiView);
@@ -188,7 +189,7 @@ void EditorState::handleSaveLoadInput()
 	{
 		if (map.loadFromJson("assets/maps/test_map.json"))
 		{
-			rebuildGridLines();
+			map.rebuildGridLines();
 			std::cout << "Map loaded successfully!" << std::endl;
 			loadTextTimer = SAVE_LOAD_TEXT_LIFETIME;
 		}
@@ -436,38 +437,38 @@ void EditorState::renderEnemyPalette(sf::RenderWindow& window)
 	window.draw(enemyPaletteText);
 }
 
-void EditorState::rebuildGridLines()
-{
-	gridLines.clear();
-
-	//	Vertical lines:
-	for (int x = 0; x <= map.getSize().x; ++x)
-	{
-		float xpos = static_cast<float>(x * TileMap::TILE_SIZE);
-		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, 0.f) }, gridColor });
-		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, map.getSize().y * TileMap::TILE_SIZE) }, gridColor });
-	}
-	//	Horizontal lines:
-	for (int y = 0; y <= map.getSize().y; ++y)
-	{
-		float ypos = static_cast<float>(y * TileMap::TILE_SIZE);
-		gridLines.append(sf::Vertex{ { sf::Vector2f(0.f, ypos) }, gridColor });
-		gridLines.append(sf::Vertex{ { sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, ypos)}, gridColor });
-	}
-}
-
-void EditorState::renderGrid(sf::RenderWindow& window)
-{
-	if (!isGridShown)
-		return;
-	
-	sf::RectangleShape border(sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, map.getSize().y * TileMap::TILE_SIZE));
-	border.setFillColor(sf::Color::Transparent);
-	border.setOutlineThickness(2.f);
-	border.setOutlineColor(sf::Color(255, 255, 255, 128));
-	window.draw(border);
-	window.draw(gridLines);
-}
+//void EditorState::rebuildGridLines()
+//{
+//	gridLines.clear();
+//
+//	//	Vertical lines:
+//	for (int x = 0; x <= map.getSize().x; ++x)
+//	{
+//		float xpos = static_cast<float>(x * TileMap::TILE_SIZE);
+//		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, 0.f) }, gridColor });
+//		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, map.getSize().y * TileMap::TILE_SIZE) }, gridColor });
+//	}
+//	//	Horizontal lines:
+//	for (int y = 0; y <= map.getSize().y; ++y)
+//	{
+//		float ypos = static_cast<float>(y * TileMap::TILE_SIZE);
+//		gridLines.append(sf::Vertex{ { sf::Vector2f(0.f, ypos) }, gridColor });
+//		gridLines.append(sf::Vertex{ { sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, ypos)}, gridColor });
+//	}
+//}
+//
+//void EditorState::renderGrid(sf::RenderWindow& window)
+//{
+//	if (!isGridShown)
+//		return;
+//	
+//	sf::RectangleShape border(sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, map.getSize().y * TileMap::TILE_SIZE));
+//	border.setFillColor(sf::Color::Transparent);
+//	border.setOutlineThickness(2.f);
+//	border.setOutlineColor(sf::Color(255, 255, 255, 128));
+//	window.draw(border);
+//	window.draw(gridLines);
+//}
 
 void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
 {
@@ -744,8 +745,8 @@ void EditorState::renderTilePalette(sf::RenderWindow& window)
 
 void EditorState::handleTogglesInput()
 {
-	if (Utility::isKeyReleased(sf::Keyboard::Key::G))
-		isGridShown = !isGridShown;
+	/*if (Utility::isKeyReleased(sf::Keyboard::Key::G))
+		isGridShown = !isGridShown;*/
 }
 
 void EditorState::handleModeSwitchInput()

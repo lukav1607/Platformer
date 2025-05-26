@@ -15,11 +15,12 @@
 #include "../../core/Utility.hpp"
 
 EditorCamera EditorState::camera;
+EditorState::Mode EditorState::mode = Mode::TILES;
 
-EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, std::vector<Enemy>& enemies, sf::Font& font) :
+EditorState::EditorState(StateManager& stateManager, PlayState& playState, World& world, Player& player, std::vector<std::unique_ptr<Enemy>>& enemies, sf::Font& font) :
 	State(stateManager),
 	playState(playState),
-	map(map),
+	world(world),
 	player(player),
 	enemies(enemies),
 	font(font),
@@ -40,16 +41,12 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 		Tile::Type::Water,
 		Tile::Type::Door
 	},
-	selectedTileIndex(0U),
-	selectedPlayerModeIndex(0U),
-	selectedEnemyIndex(0U),
+	selectedTileIndex(-1),
+	selectedPlayerModeIndex(-1),
+	selectedEnemyIndex(-1),
 	currentEnemy(),
 	isDrawingSelection(false),
 	selectionAction(SelectionAction::NONE),
-	//gridLines(sf::PrimitiveType::Lines),
-	//gridColor(sf::Color(255, 255, 255, 64)),
-	//isGridShown(true),
-	mode(Mode::TILES),
 	isErasing(false),
 	toolOffset(32.f, 64.f),
 	undoRedoTimer(UNDO_REDO_INITIAL_DELAY),
@@ -60,12 +57,13 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	mapSavedText(font, "Map saved!", 48U),
 	mapLoadedText(font, "Map loaded!", 48U)
 {
-	//rebuildGridLines();
-
 	playerSpawnShape.setSize(player.getSize());
 	playerSpawnShape.setFillColor(sf::Color::Transparent);
 	playerSpawnShape.setOutlineThickness(4.f);
 	playerSpawnShape.setOutlineColor(sf::Color(player.getColor().r - 50.f, player.getColor().g + 200.f, player.getColor().b - 50.f, 255));
+	playerSpawnShape.setPosition({
+		player.spawnPosition.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+		player.spawnPosition.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
 
 	playerPlacementText.setFillColor(sf::Color::White);
 	playerPlacementText.setOutlineColor(sf::Color(30, 30, 30, 255));
@@ -82,6 +80,9 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, TileM
 	mapLoadedText.setFillColor(sf::Color::White);
 	mapLoadedText.setOutlineColor(sf::Color(30, 30, 30, 255));
 	mapLoadedText.setOutlineThickness(2.f);
+
+	for (auto& enemy : enemies)
+		enemy->updateDebugVisuals(world.getCurrentArea().map, player.getLogicPositionCenter());
 }
 
 void EditorState::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)
@@ -150,6 +151,7 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	window.draw(playerSpawnShape);
 	renderPlayerPreview(window, tileCoords);
 	renderEnemyPreview(window, tileCoords);
+	renderErasePreview(window, tileCoords);
 
 	// Draw as overlay/UI
 	window.setView(uiView);
@@ -157,6 +159,23 @@ void EditorState::render(sf::RenderWindow& window, float interpolationFactor)
 	renderPlayerModes(window);
 	renderEnemyPalette(window);
 	renderSaveLoadText(window);
+	
+	sf::Text editorText(font, "Editor Mode", 48U);
+	editorText.setFillColor(sf::Color::White);
+	editorText.setOutlineColor(sf::Color(30, 30, 30, 255));
+	editorText.setOutlineThickness(2.f);
+	editorText.setPosition(sf::Vector2f(window.getSize().x / 2.f - editorText.getGlobalBounds().size.x / 2.f, 20.f));
+	window.draw(editorText);
+
+	if (isErasing)
+	{
+		sf::Text erasingText(font, "Erasing", 32U);
+		erasingText.setFillColor(sf::Color::Red);
+		erasingText.setOutlineColor(sf::Color(30, 30, 30, 255));
+		erasingText.setOutlineThickness(2.f);
+		erasingText.setPosition(sf::Vector2f(20.f, window.getSize().y - 20.f - erasingText.getGlobalBounds().size.y));
+		window.draw(erasingText);
+	}
 
 	// Reset the view to the default Editor view (editor camera)
 	window.setView(camera.getView());
@@ -179,18 +198,18 @@ void EditorState::handleSaveLoadInput()
 
 	if (ctrlPressed && sReleased)
 	{
-		if (map.saveToJson("assets/maps/test_map.json"))
+		if (world.getCurrentArea().save("assets/maps/test_map.json"))
 		{
-			std::cout << "Map saved successfully!" << std::endl;
+			//std::cout << "Map saved successfully!" << std::endl;
 			saveTextTimer = SAVE_LOAD_TEXT_LIFETIME;
 		}
 	}
 	if (ctrlPressed && lReleased)
 	{
-		if (map.loadFromJson("assets/maps/test_map.json"))
+		if (world.getCurrentArea().load("assets/maps/test_map.json"))
 		{
-			map.rebuildGridLines();
-			std::cout << "Map loaded successfully!" << std::endl;
+			//world.getCurrentArea().map.rebuildGridLines();
+			//std::cout << "Map loaded successfully!" << std::endl;
 			loadTextTimer = SAVE_LOAD_TEXT_LIFETIME;
 		}
 	}
@@ -218,8 +237,13 @@ void EditorState::handlePlayerPlacement(sf::Vector2i mouseWindowPosition, sf::Ve
 		return;
 
 	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
+	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
 
-	if (isLeftClickReleased)
+	if (isRightClickReleased)
+	{
+		selectedPlayerModeIndex = -1; // Deselect player mode on right click
+	}
+	else if (isLeftClickReleased)
 	{
 		// Tile palette click detection / selection
 		for (size_t i = 0; i < playerModes.size(); ++i)
@@ -231,10 +255,12 @@ void EditorState::handlePlayerPlacement(sf::Vector2i mouseWindowPosition, sf::Ve
 				return;
 			}
 		}
-
-		if (!map.isWithinBounds(tileCoords) || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+		if (selectedPlayerModeIndex == -1)
 			return;
-		if (map.getTile(tileCoords).type == Tile::Type::Solid || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid)
+
+		if (!world.getCurrentArea().map.isWithinBounds(tileCoords) || !world.getCurrentArea().map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+			return;
+		if (world.getCurrentArea().map.getTile(tileCoords).type == Tile::Type::Solid || world.getCurrentArea().map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid)
 			return;
 
 		if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::MOVE_TO))
@@ -246,8 +272,8 @@ void EditorState::handlePlayerPlacement(sf::Vector2i mouseWindowPosition, sf::Ve
 		{
 			player.spawnPosition = tileCoords;
 			playerSpawnShape.setPosition({
-				tileCoords.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
-				tileCoords.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
+				player.spawnPosition.x * TileMap::TILE_SIZE + (TileMap::TILE_SIZE / 2.f - player.getSize().x / 2.f),
+				player.spawnPosition.y * TileMap::TILE_SIZE + (TileMap::TILE_SIZE - player.getSize().y) });
 			//batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
 		}
 	}	
@@ -261,13 +287,13 @@ void EditorState::handlePlayerPlacement(sf::Vector2i mouseWindowPosition, sf::Ve
 
 void EditorState::renderPlayerPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
-	if (mode != Mode::PLAYER)
+	if (mode != Mode::PLAYER || selectedPlayerModeIndex == -1)
 		return;
 
-	if (!map.isWithinBounds(tileCoords) || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
+	if (!world.getCurrentArea().map.isWithinBounds(tileCoords) || !world.getCurrentArea().map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f)))
 		return;
 
-	if (map.getTile(tileCoords).type == Tile::Type::Solid || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid)
+	if (world.getCurrentArea().map.getTile(tileCoords).type == Tile::Type::Solid || world.getCurrentArea().map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid)
 		return;
 
 	if (selectedPlayerModeIndex == static_cast<unsigned>(PlayerMode::SET_SPAWN))
@@ -324,7 +350,12 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
 	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
 
-	if (isLeftClickReleased)
+	if (isRightClickReleased)
+	{
+		selectedEnemyIndex = -1; // Deselect enemy on right click
+		currentEnemy.clearPatrolPositions();
+	}
+	else if (isLeftClickReleased)
 	{
 		// Tile palette click detection / selection
 		for (size_t i = 0; i < enemyPalette.size(); ++i)
@@ -338,38 +369,58 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 				return;
 			}
 		}
+		//if (selectedEnemyIndex == -1)
+		//	return;
 
-		if (!map.isWithinBounds(tileCoords)/* || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f))*/)
-			return;
-		if (map.getTile(tileCoords).type == Tile::Type::Solid/* || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid*/)
-			return;
-
-		if (currentEnemy.getPatrolPositions().size() > 1)
-			for (int i = 1; i < currentEnemy.getPatrolPositions().size(); ++i)
-				if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
-					return;
-
-		if (!currentEnemy.getPatrolPositions().empty() && tileCoords == currentEnemy.getPatrolPositions().at(0))
+		if (!isErasing && selectedEnemyIndex != -1)
 		{
-			enemies.emplace_back(Enemy(currentEnemy.getPatrolPositions(), static_cast<Enemy::Type>(selectedEnemyIndex)));
-			currentEnemy.clearPatrolPositions();
-			return;
-		}
-
-		if (currentEnemy.isValidPatrolPosition(map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
-			currentEnemy.addPatrolPosition(tileCoords);
-	}
-	else if (isRightClickReleased)
-	{
-		if (currentEnemy.getPatrolPositions().empty())
-			return;
-
-		for (int i = 0; i < currentEnemy.getPatrolPositions().size(); ++i)
-		{
-			if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
-			{
-				currentEnemy.removePatrolPosition(tileCoords);
+			if (!world.getCurrentArea().map.isWithinBounds(tileCoords)/* || !map.isWithinBounds(tileCoords + sf::Vector2i(0.f, -1.f))*/)
 				return;
+			if (world.getCurrentArea().map.getTile(tileCoords).type == Tile::Type::Solid/* || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid*/)
+				return;
+
+			if (currentEnemy.getPatrolPositions().size() > 1)
+				for (int i = 1; i < currentEnemy.getPatrolPositions().size(); ++i)
+					if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
+						return;
+
+			if (!currentEnemy.getPatrolPositions().empty() && tileCoords == currentEnemy.getPatrolPositions().at(0))
+			{
+				enemies.emplace_back(std::make_unique<Enemy>(currentEnemy.getPatrolPositions(), static_cast<Enemy::Type>(selectedEnemyIndex)));
+				currentEnemy.clearPatrolPositions();
+				return;
+			}
+
+			if (currentEnemy.isValidPatrolPosition(world.getCurrentArea().map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
+				currentEnemy.addPatrolPosition(tileCoords);
+		}
+		else if (isErasing)
+		{
+			/*if (currentEnemy.getPatrolPositions().empty())
+				return;*/
+
+			for (int i = 0; i < currentEnemy.getPatrolPositions().size(); ++i)
+			{
+				if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
+				{
+					currentEnemy.removePatrolPosition(tileCoords);
+					return;
+				}
+			}
+
+			for (auto& enemy : enemies)
+			{
+				if (enemy->getPatrolPositions().empty())
+					continue;
+
+				for (int i = 0; i < enemy->getPatrolPositions().size(); ++i)
+				{
+					if (enemy->getPatrolPositions().at(i) == tileCoords)
+					{
+						enemy->removePatrolPosition(tileCoords);
+						return;
+					}
+				}
 			}
 		}
 	}
@@ -377,21 +428,25 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 
 void EditorState::renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
-	if (mode != Mode::ENEMIES)
-		return;
 
 	for (auto& enemy : enemies)
-		enemy.renderPatrolPositions(window, font);
+		enemy->renderPatrolPositions(window, font);
 
 	currentEnemy.renderPatrolPositions(window, font);
 
-	if (!map.isWithinBounds(tileCoords))
+	if (mode != Mode::ENEMIES)
+		return;
+
+	if (selectedEnemyIndex == -1 || isErasing)
+		return;
+
+	if (!world.getCurrentArea().map.isWithinBounds(tileCoords))
 		return;
 
 	sf::RectangleShape enemyPatrolPositionPreview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
 	enemyPatrolPositionPreview.setPosition(Utility::tileToWorldCoords(tileCoords));
 
-	if (currentEnemy.isValidPatrolPosition(map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
+	if (currentEnemy.isValidPatrolPosition(world.getCurrentArea().map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
 	{
 		enemyPatrolPositionPreview.setFillColor(sf::Color(100, 220, 100, 100));
 		enemyPatrolPositionPreview.setOutlineColor(sf::Color(100, 220, 100, 200));
@@ -437,51 +492,23 @@ void EditorState::renderEnemyPalette(sf::RenderWindow& window)
 	window.draw(enemyPaletteText);
 }
 
-//void EditorState::rebuildGridLines()
-//{
-//	gridLines.clear();
-//
-//	//	Vertical lines:
-//	for (int x = 0; x <= map.getSize().x; ++x)
-//	{
-//		float xpos = static_cast<float>(x * TileMap::TILE_SIZE);
-//		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, 0.f) }, gridColor });
-//		gridLines.append(sf::Vertex{ { sf::Vector2f(xpos, map.getSize().y * TileMap::TILE_SIZE) }, gridColor });
-//	}
-//	//	Horizontal lines:
-//	for (int y = 0; y <= map.getSize().y; ++y)
-//	{
-//		float ypos = static_cast<float>(y * TileMap::TILE_SIZE);
-//		gridLines.append(sf::Vertex{ { sf::Vector2f(0.f, ypos) }, gridColor });
-//		gridLines.append(sf::Vertex{ { sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, ypos)}, gridColor });
-//	}
-//}
-//
-//void EditorState::renderGrid(sf::RenderWindow& window)
-//{
-//	if (!isGridShown)
-//		return;
-//	
-//	sf::RectangleShape border(sf::Vector2f(map.getSize().x * TileMap::TILE_SIZE, map.getSize().y * TileMap::TILE_SIZE));
-//	border.setFillColor(sf::Color::Transparent);
-//	border.setOutlineThickness(2.f);
-//	border.setOutlineColor(sf::Color(255, 255, 255, 128));
-//	window.draw(border);
-//	window.draw(gridLines);
-//}
-
 void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords)
 {
-	if (isDrawingSelection)
-		return;
-
-	static std::vector<std::unique_ptr<Action>> batch;
-
 	bool isLeftClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
 	bool isRightClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Right);
 	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
 	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
 	bool hasPaletteBeenClicked = false;
+
+	if (isRightClickHeld || isRightClickReleased)
+	{
+		selectedTileIndex = -1; // Deselect tile on right click
+		//return;
+	}
+	if (isDrawingSelection)
+		return;
+
+	static std::vector<std::unique_ptr<Action>> batch;
 
 	if (isLeftClickHeld)
 	{
@@ -497,26 +524,29 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 			}
 		}
 	}
+	//if (selectedTileIndex == -1)
+		//return;
+
 	// Tile placement
 	if (!hasPaletteBeenClicked &&
-		map.isWithinBounds(tileCoords))
+		world.getCurrentArea().map.isWithinBounds(tileCoords))
 	{
-		Tile::Type oldType = map.getTile(tileCoords).type;
-		Tile::Type newType = isLeftClickHeld && !isErasing ? palette.at(selectedTileIndex) : Tile::Type::EMPTY;
+		Tile::Type oldType = world.getCurrentArea().map.getTile(tileCoords).type;
+		Tile::Type newType = isLeftClickHeld && !isErasing && selectedTileIndex != -1 ? palette.at(selectedTileIndex) : Tile::Type::EMPTY;
 
 		if (oldType != newType)
 		{
-			if (isLeftClickHeld && !isErasing)
-				map.setTile(tileCoords.x, tileCoords.y, Tile{ palette.at(selectedTileIndex) });
+			if (isLeftClickHeld && !isErasing && selectedTileIndex != -1)
+				world.getCurrentArea().map.setTile(tileCoords.x, tileCoords.y, Tile{ palette.at(selectedTileIndex) });
 
 			else if (isLeftClickHeld && isErasing)
-				map.setTile(tileCoords.x, tileCoords.y, Tile{ Tile::Type::EMPTY });
+				world.getCurrentArea().map.setTile(tileCoords.x, tileCoords.y, Tile{ Tile::Type::EMPTY });
 
-			if (isLeftClickHeld || isRightClickHeld)
+			if (isLeftClickHeld)
 				batch.push_back(std::make_unique<TileAction>(tileCoords, oldType, newType));
 		}
 	}
-	if (!batch.empty() && (isLeftClickReleased || isRightClickReleased))
+	if (!batch.empty() && (isLeftClickReleased))
 	{
 		// Push the batch of actions to the undo stack and clear the redo stack
 		undoStack.push(std::make_unique<BatchAction>(std::move(batch)));
@@ -526,13 +556,18 @@ void EditorState::handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i
 
 void EditorState::handleSelectionInput(sf::Vector2i tileCoords)
 {
-	if (mode == Mode::PLAYER ||	mode == Mode::ENEMIES || mode == Mode::ITEMS)
+	if (mode == Mode::PLAYER || mode == Mode::ENEMIES || mode == Mode::ITEMS/* || selectedTileIndex == -1*/)
+	{
+		isDrawingSelection = false;
 		return;
+	}
 
 	bool isLeftClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Left);
 	bool isRightClickHeld = sf::Mouse::isButtonPressed(sf::Mouse::Button::Right);
 	bool isCtrlHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LControl);
 	bool isShiftHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::Key::LShift);
+	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
+	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
 
 	if (!isDrawingSelection)
 	{
@@ -555,32 +590,50 @@ void EditorState::handleSelectionInput(sf::Vector2i tileCoords)
 	{
 		selectionEnd = tileCoords;
 
-		if (!(isLeftClickHeld || isRightClickHeld))
+		if (isLeftClickReleased)
 		{
 			applySelectionAction();
 			isDrawingSelection = false;
 			selectionAction = SelectionAction::NONE;
+		}
+		else if (isRightClickReleased)
+		{
+			isDrawingSelection = false;
+			selectionAction = SelectionAction::NONE;
+			selectedEnemyIndex = -1;
+			selectedTileIndex = -1;
+			selectedPlayerModeIndex = -1;
 		}
 	}
 }
 
 void EditorState::applySelectionAction()
 {
+	if (/*selectedTileIndex == -1 || */!isDrawingSelection)
+		return;
+
+	if (selectedTileIndex == -1 && !isErasing)
+		return;
+
 	sf::Vector2i topLeft = { std::min(selectionStart.x, selectionEnd.x), std::min(selectionStart.y, selectionEnd.y) };
 	sf::Vector2i bottomRight = { std::max(selectionStart.x, selectionEnd.x), std::max(selectionStart.y, selectionEnd.y) };
 
 	std::vector<std::unique_ptr<Action>> batch;
 
-	Tile::Type newType = palette.at(selectedTileIndex);
+	Tile::Type newType;
+	if (isErasing && selectedTileIndex == -1)
+		newType = Tile::Type::EMPTY;
+	else
+		newType = palette.at(selectedTileIndex);
 
 	for (int y = topLeft.y; y <= bottomRight.y; ++y)
 	{
 		for (int x = topLeft.x; x <= bottomRight.x; ++x)
 		{
-			if (!map.isWithinBounds({ x, y }))
+			if (!world.getCurrentArea().map.isWithinBounds({ x, y }))
 				continue;
 
-			Tile::Type oldType = map.getTile({ x, y }).type;
+			Tile::Type oldType = world.getCurrentArea().map.getTile({ x, y }).type;
 
 			if (selectionAction == SelectionAction::PLACE)
 			{
@@ -590,7 +643,7 @@ void EditorState::applySelectionAction()
 					if (oldType == newType)
 						continue;
 					batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, newType));
-					map.setTile(x, y, Tile{ newType }, false);
+					world.getCurrentArea().map.setTile(x, y, Tile{ newType }, false);
 					break;
 				default:
 					break;
@@ -602,7 +655,7 @@ void EditorState::applySelectionAction()
 				{
 				case Mode::TILES:
 					batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, Tile::Type::EMPTY));
-					map.setTile(x, y, Tile{ Tile::Type::EMPTY }, false);
+					world.getCurrentArea().map.setTile(x, y, Tile{ Tile::Type::EMPTY }, false);
 					break;
 				default:
 					break;
@@ -611,11 +664,11 @@ void EditorState::applySelectionAction()
 			else if (selectionAction == SelectionAction::ERASE_ALL)
 			{
 				batch.push_back(std::make_unique<TileAction>(sf::Vector2i(x, y), oldType, Tile::Type::EMPTY));
-				map.setTile(x, y, Tile{ Tile::Type::EMPTY }, false);
+				world.getCurrentArea().map.setTile(x, y, Tile{ Tile::Type::EMPTY }, false);
 			}
 		}
 	}
-	map.rebuildVisuals();
+	world.getCurrentArea().map.rebuildVisuals();
 
 	if (!batch.empty())
 	{
@@ -627,7 +680,7 @@ void EditorState::applySelectionAction()
 
 void EditorState::renderSelectionRect(sf::RenderWindow& window) const
 {
-	if (!isDrawingSelection)
+	if (!isDrawingSelection/* || selectedTileIndex == -1*/)
 		return;
 
 	sf::Vector2f selectionStartPos = Utility::tileToWorldCoords(selectionStart);
@@ -661,7 +714,7 @@ void EditorState::renderSelectionRect(sf::RenderWindow& window) const
 
 void EditorState::handleTilePreviewRendering(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
-	if (sf::Mouse::isButtonPressed(sf::Mouse::Button::Right) ||
+	if (selectedTileIndex == -1 ||
 		selectionAction == SelectionAction::ERASE_SPECIFIC ||
 		selectionAction == SelectionAction::ERASE_ALL)
 		return;
@@ -683,39 +736,21 @@ void EditorState::handleTilePreviewRendering(sf::RenderWindow& window, sf::Vecto
 
 void EditorState::renderTilePreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
-	if (mode != Mode::TILES)
+	if (mode != Mode::TILES || selectedTileIndex == -1)
 		return;
 
-	if (map.isWithinBounds(tileCoords) && (map.getTile(tileCoords).type != palette.at(selectedTileIndex) || isErasing))
+	if (world.getCurrentArea().map.isWithinBounds(tileCoords) && world.getCurrentArea().map.getTile(tileCoords).type != palette.at(selectedTileIndex))
 	{
 		sf::RectangleShape preview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
 		preview.setPosition({ static_cast<float>(tileCoords.x * TileMap::TILE_SIZE), static_cast<float>(tileCoords.y * TileMap::TILE_SIZE) });
 		preview.setFillColor([&]
 			{
-				if (isErasing)
-					return sf::Color(255, 0, 0, 30);
-				sf::Color color = map.getTileColor(palette.at(selectedTileIndex));
+				sf::Color color = world.getCurrentArea().map.getTileColor(palette.at(selectedTileIndex));
 				color.a = 128;
 				return color;
 			}());
-		preview.setOutlineColor([&]
-			{
-				if (isErasing)
-					return sf::Color::Red;
-				return sf::Color::Transparent;
-			}());
+		preview.setOutlineColor(sf::Color::Transparent);
 		preview.setOutlineThickness(2.f);
-		if (isErasing)
-		{
-			sf::VertexArray crossedLines(sf::PrimitiveType::Lines, 4);
-			crossedLines[0].position = { tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE };
-			crossedLines[1].position = { tileCoords.x * TileMap::TILE_SIZE + TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE + TileMap::TILE_SIZE };
-			crossedLines[2].position = { tileCoords.x * TileMap::TILE_SIZE + TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE };
-			crossedLines[3].position = { tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE + TileMap::TILE_SIZE };
-			for (int i = 0; i < crossedLines.getVertexCount(); ++i)
-				crossedLines[i].color = sf::Color::Red;
-			window.draw(crossedLines);
-		}
 		window.draw(preview);
 	}
 }
@@ -729,7 +764,7 @@ void EditorState::renderTilePalette(sf::RenderWindow& window)
 	{
 		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
 		shape.setPosition({ toolOffset.x + i * 60.f, toolOffset.y });
-		shape.setFillColor(map.getTileColor(palette.at(i)));
+		shape.setFillColor(world.getCurrentArea().map.getTileColor(palette.at(i)));
 
 		if (i == selectedTileIndex)
 		{
@@ -759,7 +794,36 @@ void EditorState::handleModeSwitchInput()
 	}
 
 	if (Utility::isKeyReleased(sf::Keyboard::Key::E))
+	{
 		isErasing = !isErasing;
+		if (isErasing)
+		{
+			selectedTileIndex = -1;
+		}
+	}
+}
+
+void EditorState::renderErasePreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
+{
+	if (!isErasing || !world.getCurrentArea().map.isWithinBounds(tileCoords) || isDrawingSelection)
+		return;
+
+	sf::RectangleShape preview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
+	preview.setPosition({ static_cast<float>(tileCoords.x * TileMap::TILE_SIZE), static_cast<float>(tileCoords.y * TileMap::TILE_SIZE) });
+	preview.setFillColor(sf::Color(255, 0, 0, 30));
+	preview.setOutlineColor(sf::Color::Red);
+	preview.setOutlineThickness(2.f);
+
+	sf::VertexArray crossedLines(sf::PrimitiveType::Lines, 4);
+	crossedLines[0].position = { tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE };
+	crossedLines[1].position = { tileCoords.x * TileMap::TILE_SIZE + TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE + TileMap::TILE_SIZE };
+	crossedLines[2].position = { tileCoords.x * TileMap::TILE_SIZE + TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE };
+	crossedLines[3].position = { tileCoords.x * TileMap::TILE_SIZE, tileCoords.y * TileMap::TILE_SIZE + TileMap::TILE_SIZE };
+	for (int i = 0; i < crossedLines.getVertexCount(); ++i)
+		crossedLines[i].color = sf::Color::Red;
+
+	window.draw(crossedLines);
+	window.draw(preview);
 }
 
 void EditorState::handleUndoRedoInput()
@@ -822,7 +886,7 @@ void EditorState::undo()
 
 	auto action = std::move(undoStack.top());
 	undoStack.pop();
-	action->undo(map);
+	action->undo(world.getCurrentArea().map);
 	redoStack.push(std::move(action));	
 }
 
@@ -833,6 +897,6 @@ void EditorState::redo()
 
 	auto action = std::move(redoStack.top());
 	redoStack.pop();
-	action->redo(map);
+	action->redo(world.getCurrentArea().map);
 	undoStack.push(std::move(action));
 }

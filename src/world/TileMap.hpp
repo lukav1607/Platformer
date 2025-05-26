@@ -15,8 +15,9 @@
 #include <SFML/Graphics/Transformable.hpp>
 #include <SFML/Graphics/RectangleShape.hpp>
 #include "Tile.hpp"
+#include "../core/Serializable.hpp"
 
-class TileMap : public sf::Drawable, public sf::Transformable
+class TileMap : public sf::Drawable, public sf::Transformable, public Serializable
 {
 public:
 	TileMap(int width, int height);
@@ -26,8 +27,9 @@ public:
 		return sf::Vector2f(coords.x * TILE_SIZE + TILE_SIZE / 2.f, coords.y * TILE_SIZE + TILE_SIZE / 2.f);
 	}
 
-	bool saveToJson(const std::string& filename) const;
-	bool loadFromJson(const std::string& filename);
+	void serialize(json& j) const override;
+	void deserialize(const json& j) override;
+	//const std::string& getType() const override { return "type"; }
 
 	void resize(int width, int height);
 	inline sf::Vector2i getSize() const { return sf::Vector2i(tiles[0].size(), tiles.size()); }

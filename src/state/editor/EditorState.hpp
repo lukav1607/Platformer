@@ -18,6 +18,7 @@
 #include "../State.hpp"
 #include "../game/PlayState.hpp"
 #include "../../world/TileMap.hpp"
+#include "../../world/World.hpp"
 #include "EditorCamera.hpp"
 
 struct Action;
@@ -25,7 +26,7 @@ struct Action;
 class EditorState : public State
 {
 public:
-	EditorState(StateManager& stateManager, PlayState& playState, TileMap& map, Player& player, std::vector<Enemy>& enemies, sf::Font& font);
+	EditorState(StateManager& stateManager, PlayState& playState, World& world, Player& player, std::vector<std::unique_ptr<Enemy>>& enemies, sf::Font& font);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -39,10 +40,11 @@ public:
 
 private:
 	sf::Font& font;
-	TileMap& map;
+	//TileMap& map;
+	World& world;
 	PlayState& playState;
 	Player& player;
-	std::vector<Enemy>& enemies;
+	std::vector<std::unique_ptr<Enemy>>& enemies;
 	static EditorCamera camera;
 
 	void handleSaveLoadInput();
@@ -62,7 +64,7 @@ private:
 		MOVE_TO
 	};
 	std::vector<PlayerMode> playerModes;
-	unsigned selectedPlayerModeIndex;
+	int selectedPlayerModeIndex;
 	sf::Text playerPlacementText;
 	sf::RectangleShape playerSpawnShape;
 
@@ -70,16 +72,9 @@ private:
 	void renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderEnemyPalette(sf::RenderWindow& window);
 	std::vector<Enemy::Type> enemyPalette;
-	unsigned selectedEnemyIndex;
+	int selectedEnemyIndex;
 	sf::Text enemyPaletteText;
 	Enemy currentEnemy;
-	//std::vector<sf::Vector2i> currentEnemyPatrolPositions;
-
-	//void rebuildGridLines();
-	//void renderGrid(sf::RenderWindow& window);
-	//sf::VertexArray gridLines;
-	//sf::Color gridColor;
-	//bool isGridShown;
 
 	void handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
 
@@ -91,7 +86,7 @@ private:
 	void renderTilePalette(sf::RenderWindow& window);
 	sf::Text tilePaletteText;
 	std::vector<Tile::Type> palette;
-	unsigned selectedTileIndex;
+	int selectedTileIndex;
 	bool isDrawingSelection;
 	sf::Vector2i selectionStart;
 	sf::Vector2i selectionEnd;
@@ -117,7 +112,9 @@ private:
 		ITEMS,
 		COUNT
 	};
-	Mode mode;
+	static Mode mode;
+
+	void renderErasePreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	bool isErasing;
 
 	void handleUndoRedoInput();

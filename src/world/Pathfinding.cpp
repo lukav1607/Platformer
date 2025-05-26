@@ -100,33 +100,6 @@ std::vector<sf::Vector2i> Pathfinding::findPathAStar(const TileMap& tileMap, sf:
 				}
 			}
 		}
-		/*for (const auto& dir : directions)
-		{
-			sf::Vector2i neighbor = current.position + dir;
-
-			if (!tileMap.isWithinBounds(neighbor) || tileMap.getTile(neighbor).type == Tile::Type::Solid)
-				continue;
-
-			float cost = (dir.x != 0 && dir.y != 0) ? 1.414f : 1.f;
-			float tentativeG = current.costFromStart + cost;
-
-			if (cameFrom.find(neighbor) == cameFrom.end() || tentativeG < cameFrom[neighbor].costFromStart)
-			{
-				auto h = hFunc(neighbor, goal);
-
-				Node neighborNode
-				{
-					neighbor,
-					tentativeG,
-					tentativeG + h,
-					current.position,
-					true
-				};
-
-				cameFrom[neighbor] = neighborNode;
-				openSet.emplace(neighborNode);
-			}
-		}*/
 	}
 	return {}; // Return empty path if no path is found
 }

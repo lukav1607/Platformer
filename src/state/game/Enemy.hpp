@@ -17,8 +17,9 @@
 #include <SFML/Graphics/RenderWindow.hpp>
 #include "../../world/TileMap.hpp"
 #include "../../core/Utility.hpp"
+#include "../../core/Serializable.hpp"
 
-class Enemy
+class Enemy : public Serializable
 {
 public:
 	enum class Type
@@ -27,6 +28,11 @@ public:
 		Crawling,
 		Walking,
 		Flying
+	}; 
+	enum class State {
+		Patrol,
+		Chasing,
+		Returning,
 	};
 	inline static constexpr sf::Color getColor(Type type)
 	{
@@ -41,6 +47,11 @@ public:
 
 	Enemy();
 	Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*, sf::Vector2f size, sf::Color color, int health, bool isPassive*/);
+
+	void serialize(json& j) const override;
+	void deserialize(const json& j) override;
+
+	void initialize(Type type);
 
 	void update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
 	void render(sf::RenderWindow& window, sf::Font& font, float interpolationFactor);
@@ -57,6 +68,7 @@ public:
 	void applyHit(float damage, sf::Vector2f knockback);
 
 	void equalizePositions() { currentPosition = previousPosition; }
+	void updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition);
 
 	//bool isAtPatrolTarget() const;
 
@@ -65,8 +77,12 @@ public:
 	inline bool isAlive() const { return health > 0; }
 
 private:
-	void updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
-	void updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition);
+	//void updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
+	void updateMovement(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
+
+	void handlePatrolling(const TileMap& tileMap, sf::Vector2f playerPosition, float fixedTimeStep);
+	void handleChasing(const TileMap& tileMap, sf::Vector2f playerPosition, float fixedTimeStep);
+	void handleReturning(const TileMap& tileMap, float fixedTimeStep);
 
 	void updatePathfinding(const TileMap& tileMap, sf::Vector2f target, float fixedTimeStep);
 	void followPath(const TileMap& tileMap, /*sf::Vector2f target, */float fixedTimeStep);
@@ -80,19 +96,23 @@ private:
 	void moveTowards(sf::Vector2f target, float fixedTimeStep);
 	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
 
-	const float PATROL_SPEED = 75.f;
-	const float CHASE_SPEED = 125.f;
+	//const float PATROL_SPEED = 75.f;
+	//const float CHASE_SPEED = 125.f;
+	const float JUMP_VELOCITY = -875.f;
 	const float GRAVITY = 1500.f;
-	const float MAX_FALL_SPEED = 500.f;
+	const float TERMINAL_VELOCITY = 1250.f;
+	float patrolSpeed;
+	float chaseSpeed;
 
 	static std::vector<sf::Vector2i> usedPatrolPositions;
 	static sf::Clock clock;
 
 	Type type;
+	State state;
 	bool isCompleted;
 	int health;
-	bool isAggroed;
-	bool isReturningToPatrol;
+	//bool isAggroed;
+	//bool isReturningToPatrol;
 	float aggroRange;
 	float followRange;
 
@@ -109,7 +129,9 @@ private:
 	//sf::Vector2f lastPosition;
 	//Utility::LoSWithHysteresis losChecker;
 	float losTimer;
+	float losLostTimer;
 	const float LOS_THRESHOLD = 0.3f;
+	const float LOS_LOST_THRESHOLD = 8.0f;
 	//sf::Vector2f stuckLastPosition;
 	//int stuckCounter = 0;
 	//const int STUCK_THRESHOLD_FRAMES = 10;    // Number of frames stuck to trigger detour

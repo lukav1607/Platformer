@@ -14,7 +14,7 @@
 
 #include <SFML/Graphics/Font.hpp>
 #include "../State.hpp"
-#include "../../world/TileMap.hpp"
+#include "../../world/World.hpp"
 #include "Player.hpp"
 #include "Enemy.hpp"
 #include "GameCamera.hpp"
@@ -33,10 +33,9 @@ public:
 private:
 	sf::Font& font;
 
-	TileMap map;
+	World world;
 
 	Player player;
-	std::vector<Enemy> enemies;
 
 	GameCamera camera;
 };

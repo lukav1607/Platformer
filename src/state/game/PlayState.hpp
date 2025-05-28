@@ -16,7 +16,7 @@
 #include "../State.hpp"
 #include "../../world/World.hpp"
 #include "Player.hpp"
-#include "Enemy.hpp"
+#include "enemies/Enemy.hpp"
 #include "GameCamera.hpp"
 
 class PlayState : public State

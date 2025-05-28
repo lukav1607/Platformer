@@ -67,6 +67,9 @@ namespace Utility
 	// Check if there is a line of sight between two points, considering tile collisions.
 	bool hasLineOfSight(sf::Vector2f from, sf::Vector2f to, const TileMap& tileMap); 
 
+	// Check if there is a line of sight between two points, considering tile collisions and a clearance size.
+	bool hasLineOfSightWithClearance(sf::Vector2f from, sf::Vector2f to, sf::Vector2f size, const TileMap& tileMap);
+
 	// Converts world pixel position to tile coordinates.
 	sf::Vector2i worldToTileCoords(sf::Vector2f worldPos);
 

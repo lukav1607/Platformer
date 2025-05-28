@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <SFML/System.hpp>
 #include "../core/Utility.hpp"
+#include "../state/game/enemies/Enemy.hpp"
 
 namespace Pathfinding
 {
@@ -47,10 +48,12 @@ namespace Pathfinding
 		return static_cast<float>(std::abs(a.x - b.x) + std::abs(a.y - b.y));
 	}
 
+	std::vector<sf::Vector2i> getReachableNeighbors(Enemy::Type type, const TileMap& map, const sf::Vector2i& tile);
+
 	std::vector<sf::Vector2i> reconstructPath(const std::unordered_map<sf::Vector2i, Node, Utility::Vector2iHasher>& cameFrom, sf::Vector2i current);
 
 	// Finds the shortest path from `start` to `goal` using the A* algorithm.
 	// The heuristic can be either Manhattan or Euclidean.
 	// Returns a vector of tile coordinates representing the path.
-	std::vector<sf::Vector2i> findPathAStar(const TileMap& tileMap, sf::Vector2i start, sf::Vector2i goal, Heuristic heuristic);
+	std::vector<sf::Vector2i> findPathAStar(Enemy::Type type, const TileMap& tileMap, sf::Vector2i start, sf::Vector2i goal);
 }

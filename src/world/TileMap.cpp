@@ -238,6 +238,98 @@ bool TileMap::isWithinBounds(int x, int y) const
 	return x >= 0 && x < static_cast<int>(tiles[0].size()) && y >= 0 && y < static_cast<int>(tiles.size());
 }
 
+bool TileMap::collidesWith(const sf::FloatRect& rect) const
+{
+	int left = static_cast<int>(std::floor(rect.position.x / TILE_SIZE));
+	int top = static_cast<int>(std::floor(rect.position.y / TILE_SIZE));
+	int right = static_cast<int>(std::floor((rect.position.x + rect.size.x) / TILE_SIZE));
+	int bottom = static_cast<int>(std::floor((rect.position.y + rect.size.y) / TILE_SIZE));
+
+	// Quick bounds check
+	if (!isWithinBounds(sf::Vector2i(left, top)) || !isWithinBounds(sf::Vector2i(right, bottom)))
+		return true; // Treat out-of-bounds as solid (blocking)
+
+	for (int y = top; y <= bottom; ++y)
+	{
+		for (int x = left; x <= right; ++x)
+		{
+			sf::Vector2i tilePos(x, y);
+			if (!isWithinBounds(tilePos))
+				return true; // Treat outside as blocking
+
+			if (getTile(tilePos).type == Tile::Type::Solid)
+				return true;
+		}
+	}
+
+	// Diagonal corner check
+	// Check if rect overlaps a corner between two solid tiles (top-left corner of rect for example)
+	// We do this by checking for diagonal adjacency of solid tiles overlapping the rect corners.
+
+	// Corners of the rect in world coordinates
+	sf::Vector2f corners[4] = {
+		{rect.position.x, rect.position.y},                              // Top-left
+		{rect.position.x + rect.size.x, rect.position.y},                 // Top-right
+		{rect.position.x, rect.position.y + rect.size.y},                // Bottom-left
+		{rect.position.x + rect.size.x, rect.position.y + rect.size.y}    // Bottom-right
+	};
+
+	for (const auto& corner : corners)
+	{
+		// Tile coordinates of the corner
+		int cx = static_cast<int>(std::floor(corner.x / TILE_SIZE));
+		int cy = static_cast<int>(std::floor(corner.y / TILE_SIZE));
+
+		// Check diagonal neighbors: tiles that share a vertex with the corner tile
+		// Example: For top-left corner, check (cx-1, cy), (cx, cy-1), and (cx-1, cy-1)
+		// If two of these neighbors are solid and adjacent diagonally, it blocks corner movement
+
+		// Offsets for neighbor pairs
+		const std::pair<sf::Vector2i, sf::Vector2i> neighborPairs[] = {
+			{{-1, 0}, {0, -1}},   // top-left corner neighbors
+			{{1, 0}, {0, -1}},    // top-right corner neighbors
+			{{-1, 0}, {0, 1}},    // bottom-left corner neighbors
+			{{1, 0}, {0, 1}}      // bottom-right corner neighbors
+		};
+
+		// Determine which neighbor pair to check for this corner
+		int index = 0;
+		if (corner == corners[0]) index = 0; // top-left
+		else if (corner == corners[1]) index = 1; // top-right
+		else if (corner == corners[2]) index = 2; // bottom-left
+		else if (corner == corners[3]) index = 3; // bottom-right
+
+		auto& pair = neighborPairs[index];
+
+		sf::Vector2i n1(cx + pair.first.x, cy + pair.first.y);
+		sf::Vector2i n2(cx + pair.second.x, cy + pair.second.y);
+
+		if (isWithinBounds(n1) && isWithinBounds(n2))
+		{
+			if (getTile(n1).type == Tile::Type::Solid &&
+				getTile(n2).type == Tile::Type::Solid)
+			{
+				// Additionally check the diagonal tile between these two neighbors
+				sf::Vector2i diag(cx + pair.first.x + pair.second.x, cy + pair.first.y + pair.second.y);
+				if (isWithinBounds(diag))
+				{
+					if (getTile(diag).type == Tile::Type::Solid)
+					{
+						return true; // Solid diagonal corner blocking movement
+					}
+				}
+				else
+				{
+					// If diagonal tile out of bounds, treat as blocking
+					return true;
+				}
+			}
+		}
+	}
+
+	return false; // No collisions found
+}
+
 void TileMap::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
     states.transform *= getTransform();

@@ -15,9 +15,9 @@
 #include <SFML/Graphics/Font.hpp>
 #include <SFML/Graphics/CircleShape.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
-#include "../../world/TileMap.hpp"
-#include "../../core/Utility.hpp"
-#include "../../core/Serializable.hpp"
+#include "../../../world/TileMap.hpp"
+#include "../../../core/Utility.hpp"
+#include "../../../core/Serializable.hpp"
 
 class Enemy : public Serializable
 {
@@ -70,14 +70,13 @@ public:
 	void equalizePositions() { currentPosition = previousPosition; }
 	void updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition);
 
-	//bool isAtPatrolTarget() const;
-
 	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, size); }
 	inline sf::Vector2f getLogicPositionCenter() const { return currentPosition + sf::Vector2f(size.x / 2.f, size.y / 2.f); }
+	inline sf::Vector2f getPixelPositionBottomCenter() const { return currentPosition + sf::Vector2f(size.x * 0.5f, size.y - 1.f); }
+	inline sf::Vector2i getTilePositionLowestMiddle() const { return Utility::worldToTileCoords(currentPosition + sf::Vector2f(size.x * 0.5f, size.y - 1.f)); }
 	inline bool isAlive() const { return health > 0; }
 
 private:
-	//void updateFlying(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
 	void updateMovement(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
 
 	void handlePatrolling(const TileMap& tileMap, sf::Vector2f playerPosition, float fixedTimeStep);
@@ -85,10 +84,8 @@ private:
 	void handleReturning(const TileMap& tileMap, float fixedTimeStep);
 
 	void updatePathfinding(const TileMap& tileMap, sf::Vector2f target, float fixedTimeStep);
-	void followPath(const TileMap& tileMap, /*sf::Vector2f target, */float fixedTimeStep);
+	void followPath(const TileMap& tileMap, float fixedTimeStep);
 	void smoothPath(const TileMap& tileMap, float fixedTimeStep);
-	//bool tryInsertDetourNode(const TileMap& tileMap);
-	//bool isStuck();
 
 	void initializePatrolPositions();
 	sf::Vector2i getNextPatrolTarget() const;
@@ -96,11 +93,11 @@ private:
 	void moveTowards(sf::Vector2f target, float fixedTimeStep);
 	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
 
-	//const float PATROL_SPEED = 75.f;
-	//const float CHASE_SPEED = 125.f;
-	const float JUMP_VELOCITY = -875.f;
+	const float JUMP_VELOCITY = -500.f;
 	const float GRAVITY = 1500.f;
 	const float TERMINAL_VELOCITY = 1250.f;
+	float jumpCooldown;
+	float jumpTimer;
 	float patrolSpeed;
 	float chaseSpeed;
 
@@ -111,8 +108,6 @@ private:
 	State state;
 	bool isCompleted;
 	int health;
-	//bool isAggroed;
-	//bool isReturningToPatrol;
 	float aggroRange;
 	float followRange;
 
@@ -125,17 +120,10 @@ private:
 	float stuckTimer;
 	std::vector<sf::Vector2i> currentPathfindingPath;
 	std::size_t currentPathfindingIndex;
-	//sf::Vector2i lastPathfindingTarget;
-	//sf::Vector2f lastPosition;
-	//Utility::LoSWithHysteresis losChecker;
 	float losTimer;
 	float losLostTimer;
 	const float LOS_THRESHOLD = 0.3f;
 	const float LOS_LOST_THRESHOLD = 8.0f;
-	//sf::Vector2f stuckLastPosition;
-	//int stuckCounter = 0;
-	//const int STUCK_THRESHOLD_FRAMES = 10;    // Number of frames stuck to trigger detour
-	//const float STUCK_DISTANCE_THRESHOLD = 0.05f; // Distance moved threshold to consider stuck
 
 	sf::Vector2f currentPosition;
 	sf::Vector2f previousPosition;

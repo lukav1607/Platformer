@@ -12,7 +12,7 @@
 
 #include <memory>
 #include "TileMap.hpp"
-#include "../state/game/Enemy.hpp"
+#include "../state/game/enemies/Enemy.hpp"
 #include "../state/game/Player.hpp"
 
 class Area

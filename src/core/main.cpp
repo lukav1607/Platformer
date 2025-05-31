@@ -8,11 +8,12 @@
 // Copyright (c) 2025 Luka Vukorepa
 // ================================================================================================
 
-#include <memory>
+//#include <memory>
 #include "Game.hpp"
 
 int main()
 {
-	std::unique_ptr<Game> game = std::make_unique<Game>();
-    return game->run();
+	//std::unique_ptr<Game> game = std::make_unique<Game>(Game::getInstance());
+    //return game->run();
+	return Game::getInstance().run();
 }

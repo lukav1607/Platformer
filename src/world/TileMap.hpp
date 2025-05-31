@@ -33,7 +33,7 @@ public:
 
 	void serialize(json& j) const override;
 	void deserialize(const json& j) override;
-	//const std::string& getType() const override { return "type"; }
+	std::string getType() const override { return "TileMap"; }
 
 	void resize(int width, int height);
 	inline sf::Vector2i getSize() const { return sf::Vector2i(tiles[0].size(), tiles.size()); }

@@ -10,12 +10,14 @@
 #include <algorithm>
 #include <SFML/Graphics.hpp>
 #include "Game.hpp"
+#include "Constants.hpp"
 #include "Utility.hpp"
 #include "../state/game/PlayState.hpp"
 
-bool Game::m_isDebugModeOn = false; // Static member variable initialization
+//bool Game::m_isDebugModeOn = false; // Static member variable initialization
 
 Game::Game() :
+	m_isDebugModeOn(false),
 	isOutOfFocus(false),
 	font("assets/fonts/consola.ttf")
 {
@@ -30,7 +32,10 @@ Game::Game() :
 
 int Game::run()
 {
-	const float FIXED_TIME_STEP = 1.f / 20.f; // Fixed time step per update
+	using lv::Constants::FIXED_TIMESTEP;
+	using lv::Constants::MAX_FRAME_TIME;
+
+	///const float FIXED_TIME_STEP = 1.f / 20.f; // Fixed time step per update
 	sf::Clock clock;						  // Clock to measure time
 	float timeSinceLastUpdate = 0.f;		  // Time accumulator for fixed timestep
 	float interpolationFactor = 0.f;		  // Interpolation factor for rendering
@@ -38,20 +43,22 @@ int Game::run()
 
 	while (window.isOpen())
 	{
+		restartGlobalClock();
+
 		lastFrameTime = clock.restart().asSeconds();
 		timeSinceLastUpdate += lastFrameTime;
-		/*if (lastFrameTime > 0.01f)
-			lastFrameTime = 0.01f;*/
+		if (lastFrameTime > MAX_FRAME_TIME)
+			lastFrameTime = MAX_FRAME_TIME;
 
 		processInput();
 
-		while (timeSinceLastUpdate >= FIXED_TIME_STEP)
+		while (timeSinceLastUpdate >= FIXED_TIMESTEP)
 		{
-			update(FIXED_TIME_STEP);
-			timeSinceLastUpdate -= FIXED_TIME_STEP;
+			update(FIXED_TIMESTEP);
+			timeSinceLastUpdate -= FIXED_TIMESTEP;
 		}
 
-		interpolationFactor = std::clamp(timeSinceLastUpdate / FIXED_TIME_STEP, 0.f, 1.f);
+		interpolationFactor = std::clamp(timeSinceLastUpdate / FIXED_TIMESTEP, 0.f, 1.f);
 		render(interpolationFactor);
 	}
 	return 0;
@@ -78,9 +85,6 @@ void Game::processInput()
 	// Ignore input if the window is out of focus
 	if (isOutOfFocus)
 		return;
-
-	if (Utility::isKeyReleased(sf::Keyboard::Key::F3))
-		m_isDebugModeOn = !m_isDebugModeOn;
 
 	// Process input for the current (topmost) state
 	stateManager.processInput(window, events);

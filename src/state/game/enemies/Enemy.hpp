@@ -11,134 +11,170 @@
 
 #pragma once
 
+// STL
 #include <vector>
-#include <SFML/Graphics/Font.hpp>
+// SFML
+#include <SFML/Graphics/RenderTarget.hpp>
+#include <SFML/Graphics/RectangleShape.hpp>
 #include <SFML/Graphics/CircleShape.hpp>
-#include <SFML/Graphics/RenderWindow.hpp>
-#include "../../../world/TileMap.hpp"
+#include <SFML/Graphics/Font.hpp>
+// Game
+#include "../../../core/Constants.hpp"
 #include "../../../core/Utility.hpp"
+#include "../../../core/Position.hpp"
 #include "../../../core/Serializable.hpp"
+#include "../../../world/TileMap.hpp"
 
-class Enemy : public Serializable
+class Player;
+
+namespace lv
 {
-public:
-	enum class Type
-	{
-		//None,
-		Crawling,
-		Walking,
-		Flying
-	}; 
-	enum class State {
-		Patrol,
-		Chasing,
-		Returning,
-	};
-	inline static constexpr sf::Color getColor(Type type)
-	{
-		switch (type)
-		{
-		case Type::Crawling: return sf::Color(200, 160, 100);
-		case Type::Walking: return 	sf::Color(140, 180, 220);
-		case Type::Flying: return 	sf::Color(180, 140, 220);
-		default: return sf::Color::White;
-		}
-	}
+    class Enemy : public Serializable {
+    public:
+        enum class State
+        {
+            Patrolling,
+            Chasing,
+            Returning
+        };
 
-	Enemy();
-	Enemy(std::vector<sf::Vector2i> patrolPositions, Type type/*, sf::Vector2f size, sf::Color color, int health, bool isPassive*/);
+		Enemy();
+        virtual ~Enemy() = default;
+        virtual std::unique_ptr<Enemy> clone() const = 0;
 
-	void serialize(json& j) const override;
-	void deserialize(const json& j) override;
+        virtual void update(float fixedTimeStep, const TileMap& tileMap, const Player& player) = 0;
+        virtual void render(sf::RenderTarget& target, const sf::Font& font, float interpolationFactor) = 0;
 
-	void initialize(Type type);
+		// ---- Serialization ----
+        void serialize(json& j) const override;
+        void deserialize(const json& j) override;
+        std::string getType() const override { return "Undefined Enemy"; }
 
-	void update(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
-	void render(sf::RenderWindow& window, sf::Font& font, float interpolationFactor);
-	void renderPatrolPositions(sf::RenderWindow& window, sf::Font& font);
+        // ---- Combat ----
+        ///void takeHit(float damage, sf::Vector2f knockback);
+        bool isAlive() const { return health > 0; }
 
-	void setType(Type type) { this->type = type; }
+        // ---- LOS ----
+        virtual sf::Vector2f getEyePosition() const = 0;
+        virtual bool canSeePlayer(const Player& player) const;
 
-	bool isValidPatrolPosition(const TileMap& tileMap, Type type, sf::Vector2i tileCoords) const;
-	void addPatrolPosition(sf::Vector2i tileCoords);
-	void removePatrolPosition(sf::Vector2i tileCoords);
-	void clearPatrolPositions() { patrolPositions.clear(); }
-	const std::vector<sf::Vector2i>& getPatrolPositions() const { return patrolPositions; }
+        // ---- Patrolling ----
+        virtual bool isValidPatrolPosition(const TileMap& tileMap, sf::Vector2i tilePosition) const = 0;
+        void addPatrolPosition(sf::Vector2i tilePosition);
+        void removePatrolPosition(sf::Vector2i tilePosition);
+        void clearPatrolPositions() { patrolPositions.clear(); }
+        void renderPatrolPositions(sf::RenderTarget& target, const sf::Font& font);
+        const std::vector<sf::Vector2i>& getPatrolPositions() const { return patrolPositions; }
+        sf::Vector2i getCurrentPatrolTarget() const;
+        size_t getNextPatrolIndex() const;
+        void targetNextPatrolPosition();
+        void markAsComplete() { isCompleted = true;  }
 
-	void applyHit(float damage, sf::Vector2f knockback);
+        // ---- Jumping ----
+        ///virtual bool canJumpGap(float gapWidth, float gapHeight);
+        ///virtual bool canClearCeilingDuringJump();
 
-	void equalizePositions() { currentPosition = previousPosition; }
-	void updateDebugVisuals(const TileMap& tileMap, sf::Vector2f playerPosition);
+        // ---- Utilities ----
+		void syncPosition() { position.sync(); }
+        //  Returns the tile the Enemy is currently considered to be in for purposes of pathfinding
+        sf::Vector2i getTilePosition() const { return Utility::worldToTileCoords(getNavigationPosition()); }
+        // Returns the pixel position of the Enemy's bounds top-left corner
+        sf::Vector2f getPixelPosition() const { return position.get(); }
+        // Returns the Enemy's bounding rectangle
+		sf::FloatRect getBounds() const { return { position.get(), size }; }
 
-	inline sf::FloatRect getBounds() const { return sf::FloatRect(currentPosition, size); }
-	inline sf::Vector2f getLogicPositionCenter() const { return currentPosition + sf::Vector2f(size.x / 2.f, size.y / 2.f); }
-	inline sf::Vector2f getPixelPositionBottomCenter() const { return currentPosition + sf::Vector2f(size.x * 0.5f, size.y - 1.f); }
-	inline sf::Vector2i getTilePositionLowestMiddle() const { return Utility::worldToTileCoords(currentPosition + sf::Vector2f(size.x * 0.5f, size.y - 1.f)); }
-	inline bool isAlive() const { return health > 0; }
+        // ---- Debug ----
+        void toggleSelected() { isSelected = !isSelected; }
+        void setSelected(bool selected) { isSelected = selected; }
+        void updateDebugVisuals(const TileMap& tileMap, sf::FloatRect playerBounds);
+        void renderDebugVisuals(sf::RenderTarget& target, const sf::Font& font, float interpolationFactor);
 
-private:
-	void updateMovement(float fixedTimeStep, const TileMap& tileMap, sf::Vector2f playerPosition);
+    protected:
+        // ---- Combat and State ----
+		State state;
+        int health;
+        float aggroRange;
+        float followRange;
 
-	void handlePatrolling(const TileMap& tileMap, sf::Vector2f playerPosition, float fixedTimeStep);
-	void handleChasing(const TileMap& tileMap, sf::Vector2f playerPosition, float fixedTimeStep);
-	void handleReturning(const TileMap& tileMap, float fixedTimeStep);
+        // ---- Size and Visuals ----
+        sf::RectangleShape bounds;
+        sf::Vector2f size;
+        sf::Color color;
 
-	void updatePathfinding(const TileMap& tileMap, sf::Vector2f target, float fixedTimeStep);
-	void followPath(const TileMap& tileMap, float fixedTimeStep);
-	void smoothPath(const TileMap& tileMap, float fixedTimeStep);
+        // ---- Position and Movement ----
+		virtual void updateMovement(const TileMap& tileMap, const Player& player, float fixedTimeStep);
+        virtual void handlePatrolling(const TileMap& tileMap, const Player& player, float fixedTimeStep);
+        virtual void handleChasing(const TileMap& tileMap, const Player& player, float fixedTimeStep);
+        virtual void handleReturning(const TileMap& tileMap, float fixedTimeStep);
+        virtual void moveTowards(sf::Vector2f target, float fixedTimeStep) = 0;
+        void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
+        void setPosition(sf::Vector2i tilePosition);
 
-	void initializePatrolPositions();
-	sf::Vector2i getNextPatrolTarget() const;
+        lv::Position position;
+        sf::Vector2f velocity;
+        float chaseSpeed;
+        float patrolSpeed;
 
-	void moveTowards(sf::Vector2f target, float fixedTimeStep);
-	void resolveCollisions(float fixedTimeStep, const TileMap& tileMap);
+        // ---- Jumping ----
+        ///virtual void jump();
+        ///virtual bool isGrounded() const;
 
-	const float JUMP_VELOCITY = -500.f;
-	const float GRAVITY = 1500.f;
-	const float TERMINAL_VELOCITY = 1250.f;
-	float jumpCooldown;
-	float jumpTimer;
-	float patrolSpeed;
-	float chaseSpeed;
+        bool isOnGround;
+        float jumpForce;
+        float maxJumpHeight;
+        float maxJumpDistance;
 
-	static std::vector<sf::Vector2i> usedPatrolPositions;
-	static sf::Clock clock;
+        // ---- Line of Sight ----
+		float timeSinceGainedLOS; // Time passed since the enemy first established LOS with the player
+		float timeSinceLostLOS; // Time passed since the enemy last had LOS with the player
+		const float LOS_GAINED_THRESHOLD = 0.3f; // Time threshold to consider LOS gained, in seconds
+		const float LOS_LOST_THRESHOLD = 10.0f; // Time threshold to consider LOS lost, in seconds
 
-	Type type;
-	State state;
-	bool isCompleted;
-	int health;
-	float aggroRange;
-	float followRange;
+        // ---- Patrolling ----
+        std::vector<sf::Vector2i> patrolPositions;
+		std::size_t currentPatrolIndex = 0;
+        sf::Vector2f positionBeforeAggro;
+        bool isCompleted;
 
-	std::vector<sf::Vector2i> patrolPositions;
-	sf::Vector2i currentPatrolTargetTile;
-	sf::Vector2f currentPatrolTargetPixels;
+        // ---- Pathfinding ----
+        ///virtual bool requiresPathfinding() const = 0;
+        virtual void recalculatePath(const TileMap& tileMap, sf::Vector2i target);
+        virtual void followPath(float fixedTimeStep);
+        // Returns the pixel position of the Enemy used for pathfinding,
+        //  e.g. the center of the bounds for flying enemies,
+		//  or the bottom center (feet) for walking enemies.
+        // This version of the function returns the position in global
+        //  coordinates, meaning it is relative to the Enemy's actual
+		//  position in the world. For local coordinates, i.e. just
+		//  the raw offset used, see `getNavigationPositionLocal()`.
+		virtual sf::Vector2f getNavigationPosition() const;
+		// Returns the local position offset used for pathfinding,
+		//  e.g. the center of the bounds for flying enemies,
+		//  or the bottom center (feet) for walking enemies.
+        // This version of the function returns the local position,
+        //  meaning it does not account for the Enemy's actual
+        //  position in the world, it only returns the offset used.
+        virtual sf::Vector2f getNavigationPositionLocal() const = 0;
+        // Returns the actual pixel target an enemy should reach and
+        //  align its navigation position with for the given target tile,
+		//  e.g. the center of the tile for flying enemies,
+		//  or the bottom center of a tile for walking enemies.
+        virtual sf::Vector2f getPathTargetPosition(sf::Vector2i targetTile) const = 0;
 
-	const float PATH_UPDATE_INTERVAL = 0.3f; // Time in seconds between pathfinding updates
-	float timeSinceLastPathUpdate;
-	float stuckTimer;
-	std::vector<sf::Vector2i> currentPathfindingPath;
-	std::size_t currentPathfindingIndex;
-	float losTimer;
-	float losLostTimer;
-	const float LOS_THRESHOLD = 0.3f;
-	const float LOS_LOST_THRESHOLD = 8.0f;
+		const float PATH_TOLERANCE = 5.f; // Tolerance in pixels for pathfinding to consider the enemy at the target tile
+        std::vector<sf::Vector2i> path;
+        std::size_t currentPathIndex = 0;
+		float timeSinceLastPathUpdate; // Time since the last pathfinding update - use lv::Constants::PATHFINDING_UPDATE_INTERVAL to limit updates
 
-	sf::Vector2f currentPosition;
-	sf::Vector2f previousPosition;
-	sf::Vector2f positionBeforeAggro;
-	sf::Vector2f velocity;
-	bool isOnGround;
+		// ---- Debug ----
+        void initializeDebugVisuals();
 
-	sf::RectangleShape shape;
-	sf::Vector2f size;
-	sf::Color color;
-
-	// DEBUG
-	sf::CircleShape d_patrolTargetCircle;
-	sf::CircleShape d_aggroRangeCircle;
-	sf::CircleShape d_positionBeforeAggroCircle;
-	sf::CircleShape d_followRangeCircle;
-	sf::VertexArray d_lineOfSightLine;
-};
+        bool isSelected;
+        bool isBeingEdited;
+        sf::CircleShape d_patrolTargetCircle;
+        sf::CircleShape d_aggroRangeCircle;
+        sf::CircleShape d_positionBeforeAggroCircle;
+        sf::CircleShape d_followRangeCircle;
+        sf::VertexArray d_lineOfSightLine;
+    };
+}

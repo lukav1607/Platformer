@@ -13,69 +13,69 @@
 #include <functional>
 #include "Pathfinding.hpp"
 
-std::vector<sf::Vector2i> Pathfinding::getReachableNeighbors(Enemy::Type type, const TileMap& map, const sf::Vector2i& tile)
+std::vector<sf::Vector2i> Pathfinding::getReachableNeighbors(const TileMap& map, const sf::Vector2i& tile)
 {
 	std::vector<sf::Vector2i> neighbors;
 
-	switch (type)
-	{
-	case Enemy::Type::Walking:
-	{
-		sf::Vector2i below(tile.x, tile.y + 1);
-		bool hasGroundBelow = map.isSolid(below);
+	//switch (type)
+	//{
+	//case FlyingEnemy::Type::Walking:
+	//{
+	//	sf::Vector2i below(tile.x, tile.y + 1);
+	//	bool hasGroundBelow = map.isSolid(below);
 
-		// Standing on solid ground
-		if (hasGroundBelow)
-		{
-			// Walk left/right if destination and below are solid
-			for (int dx : {-1, 1})
-			{
-				sf::Vector2i side(tile.x + dx, tile.y);
-				sf::Vector2i sideBelow(side.x, side.y + 1);
+	//	// Standing on solid ground
+	//	if (hasGroundBelow)
+	//	{
+	//		// Walk left/right if destination and below are solid
+	//		for (int dx : {-1, 1})
+	//		{
+	//			sf::Vector2i side(tile.x + dx, tile.y);
+	//			sf::Vector2i sideBelow(side.x, side.y + 1);
 
-				if (!map.isSolid(side) && map.isSolid(sideBelow))
-					neighbors.push_back(side);
-			}
+	//			if (!map.isSolid(side) && map.isSolid(sideBelow))
+	//				neighbors.push_back(side);
+	//		}
 
-			// Jump to tiles up-left, up, up-right (1 tile high)
-			for (int dx : {-1, 0, 1})
-			{
-				sf::Vector2i jumpTarget(tile.x + dx, tile.y - 1);
-				sf::Vector2i jumpBelow(jumpTarget.x, jumpTarget.y + 1);
-				sf::Vector2i jumpAbove(jumpTarget.x, jumpTarget.y - 1); // Assuming 2-tile high enemies
+	//		// Jump to tiles up-left, up, up-right (1 tile high)
+	//		for (int dx : {-1, 0, 1})
+	//		{
+	//			sf::Vector2i jumpTarget(tile.x + dx, tile.y - 1);
+	//			sf::Vector2i jumpBelow(jumpTarget.x, jumpTarget.y + 1);
+	//			sf::Vector2i jumpAbove(jumpTarget.x, jumpTarget.y - 1); // Assuming 2-tile high enemies
 
-				if (!map.isSolid(jumpTarget) && map.isSolid(jumpBelow) && !map.isSolid(jumpAbove))
-					neighbors.push_back(jumpTarget);
-			}
+	//			if (!map.isSolid(jumpTarget) && map.isSolid(jumpBelow) && !map.isSolid(jumpAbove))
+	//				neighbors.push_back(jumpTarget);
+	//		}
 
-			// Jump over small 1-tile-wide hole
-			for (int dx : {-2, 2})
-			{
-				sf::Vector2i target(tile.x + dx, tile.y);
-				sf::Vector2i targetBelow(target.x, target.y + 1);
+	//		// Jump over small 1-tile-wide hole
+	//		for (int dx : {-2, 2})
+	//		{
+	//			sf::Vector2i target(tile.x + dx, tile.y);
+	//			sf::Vector2i targetBelow(target.x, target.y + 1);
 
-				sf::Vector2i mid(tile.x + dx / 2, tile.y);
-				sf::Vector2i midBelow(mid.x, mid.y + 1);
+	//			sf::Vector2i mid(tile.x + dx / 2, tile.y);
+	//			sf::Vector2i midBelow(mid.x, mid.y + 1);
 
-				if (!map.isSolid(target) && map.isSolid(targetBelow) &&
-					!map.isSolid(mid) && !map.isSolid(midBelow))
-				{
-					neighbors.push_back(target);
-				}
-			}
-		}
+	//			if (!map.isSolid(target) && map.isSolid(targetBelow) &&
+	//				!map.isSolid(mid) && !map.isSolid(midBelow))
+	//			{
+	//				neighbors.push_back(target);
+	//			}
+	//		}
+	//	}
 
-		// Allow drop down to one tile below if the target tile is walkable
-		sf::Vector2i oneBelow(tile.x, tile.y + 1);
-		sf::Vector2i twoBelow(tile.x, tile.y + 2);
+	//	// Allow drop down to one tile below if the target tile is walkable
+	//	sf::Vector2i oneBelow(tile.x, tile.y + 1);
+	//	sf::Vector2i twoBelow(tile.x, tile.y + 2);
 
-		if (!map.isSolid(oneBelow) && map.isSolid(twoBelow))
-		{
-			neighbors.push_back(oneBelow);
-		}
-		break;
-	}
-	case Enemy::Type::Flying:
+	//	if (!map.isSolid(oneBelow) && map.isSolid(twoBelow))
+	//	{
+	//		neighbors.push_back(oneBelow);
+	//	}
+	//	break;
+	//}
+	//case FlyingEnemy::Type::Flying:
 		for (int dx = -1; dx <= 1; ++dx)
 		{
 			for (int dy = -1; dy <= 1; ++dy)
@@ -99,8 +99,8 @@ std::vector<sf::Vector2i> Pathfinding::getReachableNeighbors(Enemy::Type type, c
 				neighbors.push_back(neighbor);
 			}
 		}
-		break;
-	}
+		//break;
+	//}
 	return neighbors;
 }
 
@@ -117,7 +117,7 @@ std::vector<sf::Vector2i> Pathfinding::reconstructPath(const std::unordered_map<
 	return path;
 }
 
-std::vector<sf::Vector2i> Pathfinding::findPathAStar(Enemy::Type type, const TileMap& tileMap, sf::Vector2i start, sf::Vector2i goal)
+std::vector<sf::Vector2i> Pathfinding::findPathAStar(const TileMap& tileMap, sf::Vector2i start, sf::Vector2i goal)
 {
 	using NodeMap = std::unordered_map<sf::Vector2i, Node, Utility::Vector2iHasher>;
 
@@ -143,14 +143,14 @@ std::vector<sf::Vector2i> Pathfinding::findPathAStar(Enemy::Type type, const Til
 		if (current.position == goal)
 			return reconstructPath(cameFrom, goal);
 
-		for (const auto& neighbor : getReachableNeighbors(type, tileMap, current.position))
+		for (const auto& neighbor : getReachableNeighbors(tileMap, current.position))
 		{
 			float cost = 1.f;
-			if (type == Enemy::Type::Flying)
-			{
+			//if (type == FlyingEnemy::Type::Flying)
+			//{
 				sf::Vector2i delta = neighbor - current.position;
 				cost = (delta.x != 0 && delta.y != 0) ? 1.414f : 1.f;
-			}
+			//}
 
 			float tentativeG = current.costFromStart + cost;
 

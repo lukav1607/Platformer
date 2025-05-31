@@ -17,7 +17,6 @@ add_executable(
     "src/core/main.cpp"
     "src/core/Utility.cpp"
     "src/core/Game.cpp"
-    "src/core/Serializable.cpp"
     "src/audio/SoundManager.cpp"
     "src/world/TileMap.cpp"
     "src/world/Tile.cpp"
@@ -30,7 +29,8 @@ add_executable(
     "src/state/game/PlayState.cpp"
     "src/state/game/GameCamera.cpp"
     "src/state/game/Player.cpp"
-    "src/state/game/enemies/Enemy.cpp" "src/state/game/enemies/FlyingEnemy.cpp")
+    "src/state/game/enemies/Enemy.cpp"
+    "src/state/game/enemies/FlyingEnemy.cpp" "src/core/Debug.cpp")
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
 
 # Don't link SFML::Main on non-Windows platforms

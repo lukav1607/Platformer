@@ -26,7 +26,7 @@ struct Action;
 class EditorState : public State
 {
 public:
-	EditorState(StateManager& stateManager, PlayState& playState, World& world, Player& player, std::vector<std::unique_ptr<Enemy>>& enemies, sf::Font& font);
+	EditorState(StateManager& stateManager, PlayState& playState, World& world, Player& player, std::vector<std::unique_ptr<lv::Enemy>>& enemies, sf::Font& font);
 
 	void processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events) override;
 	void update(float fixedTimeStep) override;
@@ -44,7 +44,7 @@ private:
 	World& world;
 	PlayState& playState;
 	Player& player;
-	std::vector<std::unique_ptr<Enemy>>& enemies;
+	std::vector<std::unique_ptr<lv::Enemy>>& enemies;
 	static EditorCamera camera;
 
 	void handleSaveLoadInput();
@@ -71,10 +71,10 @@ private:
 	void handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
 	void renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords);
 	void renderEnemyPalette(sf::RenderWindow& window);
-	std::vector<Enemy::Type> enemyPalette;
+	std::vector<std::unique_ptr<lv::Enemy>> enemyPalette;
 	int selectedEnemyIndex;
 	sf::Text enemyPaletteText;
-	Enemy currentEnemy;
+	///lv::Enemy currentEnemy;
 
 	void handleTileInput(sf::Vector2i mouseWindowPosition, sf::Vector2i tileCoords);
 

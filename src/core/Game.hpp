@@ -17,23 +17,47 @@
 class Game
 {
 public:
-	Game();
+	static Game& getInstance()
+	{
+		static Game instance;
+		return instance;
+	}
+
+	void restartGlobalClock()
+	{
+		deltaTime = globalClock.restart().asSeconds();
+		totalTime += deltaTime;
+	}
+
+	float getTime() const { return totalTime; }
+	float getDeltaTime() const { return deltaTime; }
+
 	int run();
 
-	static bool isDebugModeOn() { return m_isDebugModeOn; }
+	void toggleDebugMode() { m_isDebugModeOn = !m_isDebugModeOn; }
+	void setDebugMode(bool enabled) { m_isDebugModeOn = enabled; }
+	bool isDebugModeOn() const { return m_isDebugModeOn; }
 
 private:
-	const std::string PROJECT_NAME = "Platformer";
+	Game();
+	Game(const Game&) = delete;
+	Game& operator=(const Game&) = delete;
 
 	void processInput();
 	void update(float fixedTimeStep);
 	void render(float interpolationFactor);
 
-	static bool m_isDebugModeOn;
+	const std::string PROJECT_NAME = "Platformer";
+
+	bool m_isDebugModeOn;
 
 	sf::RenderWindow window;
 	StateManager stateManager;
 	sf::Font font;
+
+	sf::Clock globalClock;
+	float totalTime = 0.f;
+	float deltaTime = 0.f;
 
 	bool isOutOfFocus;
 };

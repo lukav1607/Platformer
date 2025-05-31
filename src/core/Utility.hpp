@@ -37,6 +37,15 @@ namespace Utility
 	// Example use: variationPercent 0.15f == 15% variation
 	float randomPitch(float variationPercent, float basePitch = 1.f);
 
+	sf::Vector2f getMidpoint(sf::Vector2f from, sf::Vector2f to, float backOffset = 5.f);	
+	void drawArrowhead(sf::RenderTarget& target, sf::Vector2f base, sf::Vector2f tip, sf::Color color, float size = 10.f);
+	void drawArrowheadAtMidpoint(sf::RenderTarget& target, sf::Vector2f from, sf::Vector2f to, sf::Color color, float size = 10.f);
+	void drawAnimatedArrowhead(sf::RenderTarget& target, sf::Vector2f base, sf::Vector2f tip, sf::Color color, float time, float offset = 2.f, float size = 10.f);
+	void drawAnimatedArrowheadAtMidpoint(sf::RenderTarget& target, sf::Vector2f from, sf::Vector2f to, sf::Color color, float time, float offset = 2.f, float size = 10.f);
+
+	void drawDashedLine(sf::RenderTarget& target, sf::Vector2f start, sf::Vector2f end, sf::Color color, float dashLength = 10.f, float gapLength = 10.f);
+	void drawAnimatedDashedLine(sf::RenderTarget& target, sf::Vector2f start, sf::Vector2f end, sf::Color color, float time, float speed = 10.f, float dashLength = 10.f, float gapLength = 10.f);
+
 	// Calculates a breathing alpha value based on the time elapsed.
 	std::uint8_t getBreathingAlpha(float timeSeconds, std::uint8_t minAlpha, std::uint8_t maxAlpha, float cycleDuration = 2.5f);
 
@@ -65,7 +74,10 @@ namespace Utility
 	//bool doesRectIntersectPolygon(sf::FloatRect rect, std::vector<sf::Vector2f> polygon);
 
 	// Check if there is a line of sight between two points, considering tile collisions.
-	bool hasLineOfSight(sf::Vector2f from, sf::Vector2f to, const TileMap& tileMap); 
+	bool hasLineOfSight(sf::Vector2f from, sf::Vector2f to, const TileMap& tileMap);
+
+	// Check if there is a line of sight from a point to any corner of a rectangle.
+	bool hasLineOfSight(sf::Vector2f from, sf::FloatRect to, const TileMap& tileMap);
 
 	// Check if there is a line of sight between two points, considering tile collisions and a clearance size.
 	bool hasLineOfSightWithClearance(sf::Vector2f from, sf::Vector2f to, sf::Vector2f size, const TileMap& tileMap);

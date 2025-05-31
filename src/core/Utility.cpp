@@ -10,6 +10,8 @@
 #include <map>
 #include <random>
 #include <cmath>
+#include <SFML/Graphics/VertexArray.hpp>
+#include <SFML/Graphics/ConvexShape.hpp>
 #include "Utility.hpp"
 #include "../world/TileMap.hpp"
 
@@ -43,6 +45,139 @@ float Utility::randomPitch(float variationPercent, float basePitch)
 
 	float randomFactor = dist(gen);
 	return basePitch + randomFactor * 2.0f * variationPercent;
+}
+
+sf::Vector2f Utility::getMidpoint(sf::Vector2f from, sf::Vector2f to, float backOffset)
+{
+	sf::Vector2f direction = to - from;
+	float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+	if (length == 0.f)
+		return from;
+
+	direction /= length;
+	return from + direction * (length * 0.5f - backOffset);
+}
+
+void Utility::drawArrowhead(sf::RenderTarget& target, sf::Vector2f base, sf::Vector2f tip, sf::Color color, float size)
+{
+	sf::Vector2f direction = tip - base;
+	float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+	if (length == 0) return;
+
+	direction /= length;
+
+	sf::Vector2f normal(-direction.y, direction.x);
+
+	sf::ConvexShape arrow;
+	arrow.setPointCount(3);
+	arrow.setPoint(0, tip);
+	arrow.setPoint(1, tip - direction * size + normal * size * 0.5f);
+	arrow.setPoint(2, tip - direction * size - normal * size * 0.5f);
+	arrow.setFillColor(color);
+	target.draw(arrow);
+}
+
+void Utility::drawArrowheadAtMidpoint(sf::RenderTarget& target, sf::Vector2f from, sf::Vector2f to, sf::Color color, float size)
+{
+	//sf::Vector2f direction = to - from;
+	//float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+	//if (length == 0.f)
+	//	return;
+
+	//direction /= length; // normalize
+
+	//// Compute midpoint
+	//sf::Vector2f mid = from + direction * (length / 2.f);
+
+	sf::Vector2f base = getMidpoint(from, to);
+	sf::Vector2f tip = base + (to - from) * 0.01f; // tiny forward nudge
+
+	// Now draw the arrow pointing in the direction from->to
+	drawArrowhead(target, base, tip, color, size);
+}
+
+void Utility::drawAnimatedArrowhead(sf::RenderTarget& target, sf::Vector2f base, sf::Vector2f tip, sf::Color color, float time, float offset, float size)
+{
+	sf::Vector2f direction = tip - base;
+	float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+	if (length == 0.f)
+		return;
+
+	direction /= length;
+
+	// Bob amount sliding along the line direction (back and forth)
+	float bob = std::sin(time * 3.f + offset) * 2.f;
+
+	// Move both base and tip along the direction by bob amount
+	base += direction * bob;
+	tip += direction * bob;
+
+	drawArrowhead(target, base, tip, color, size);
+}
+
+void Utility::drawAnimatedArrowheadAtMidpoint(sf::RenderTarget& target, sf::Vector2f from, sf::Vector2f to, sf::Color color, float time, float offset, float size)
+{
+	//sf::Vector2f direction = to - from;
+	//float length = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+	//if (length == 0.f)
+	//	return;
+
+	//direction /= length; // normalize
+
+	//// Compute midpoint
+	//sf::Vector2f mid = from + direction * (length / 2.f);
+
+	sf::Vector2f base = getMidpoint(from, to);
+	sf::Vector2f tip = base + (to - from) * 0.01f; // tiny forward nudge
+
+	// Now draw the arrow pointing in the direction from->to
+	drawAnimatedArrowhead(target, base, tip, color, time, offset, size);
+}
+
+void Utility::drawDashedLine(sf::RenderTarget& target, sf::Vector2f start, sf::Vector2f end, sf::Color color, float dashLength, float gapLength)
+{
+	sf::Vector2f delta = end - start;
+	float length = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+	sf::Vector2f direction = delta / length;
+
+	float total = 0.f;
+	while (total + dashLength < length)
+	{
+		sf::Vector2f p1 = start + direction * total;
+		sf::Vector2f p2 = start + direction * (total + dashLength);
+
+		sf::VertexArray line(sf::PrimitiveType::Lines, 2);
+		line.append(sf::Vertex{ p1, color });
+		line.append(sf::Vertex{ p2, color });
+
+		target.draw(line);
+
+		total += dashLength + gapLength;
+	}
+}
+
+void Utility::drawAnimatedDashedLine(sf::RenderTarget& target, sf::Vector2f start, sf::Vector2f end, sf::Color color, float time, float speed, float dashLength, float gapLength)
+{
+	sf::Vector2f delta = end - start;
+	float length = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+	sf::Vector2f direction = delta / length;
+
+	float total = std::fmod(time * speed, dashLength + gapLength); // Animate offset
+
+	while (total < length)
+	{
+		float segLength = std::min(dashLength, length - total);
+		sf::Vector2f p1 = start + direction * total;
+		sf::Vector2f p2 = start + direction * (total + segLength);
+
+		sf::VertexArray line(sf::PrimitiveType::Lines, 2);
+		line.append(sf::Vertex{ p1, color });
+		line.append(sf::Vertex{ p2, color });
+
+		target.draw(line);
+
+		total += dashLength + gapLength;
+	}
 }
 
 std::uint8_t Utility::getBreathingAlpha(float timeSeconds, std::uint8_t minAlpha, std::uint8_t maxAlpha, float cycleDuration)
@@ -119,6 +254,23 @@ bool Utility::hasLineOfSight(sf::Vector2f from, sf::Vector2f to, const TileMap& 
 	}
 
 	return true;
+}
+
+bool Utility::hasLineOfSight(sf::Vector2f from, sf::FloatRect to, const TileMap& tileMap)
+{
+	std::vector<sf::Vector2f> corners =
+	{
+		{to.position.x, to.position.y},
+		{to.position.x + to.size.x, to.position.y},
+		{to.position.x, to.position.y + to.size.y},
+		{to.position.x + to.size.x, to.position.y + to.size.y}
+	};
+
+	for (const auto& corner : corners)
+		if (hasLineOfSight(from, corner, tileMap))
+			return true; // If at least one corner can be seen, there is line of sight
+
+	return false;
 }
 
 bool Utility::hasLineOfSightWithClearance(sf::Vector2f from, sf::Vector2f to, sf::Vector2f size, const TileMap& tileMap)

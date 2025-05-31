@@ -14,6 +14,7 @@
 #include "../editor/EditorState.hpp"
 #include "../../core/Utility.hpp"
 #include "../../core/Game.hpp"
+#include "../../core/Debug.hpp"
 
 PlayState::PlayState(StateManager& stateManager, sf::RenderWindow& window, sf::Font& font) :
 	State(stateManager),
@@ -31,11 +32,40 @@ void PlayState::processInput(const sf::RenderWindow& window, const std::vector<s
 	{
 		player.equalizePositions();
 		for (auto& enemy : world.getCurrentArea().enemies)
-			enemy->equalizePositions();
+			enemy->syncPosition();
 		stateManager.push(std::make_unique<EditorState>(stateManager, *this, world, player, world.getCurrentArea().enemies, font));
 	}
-	//else if (Utility::isKeyReleased(sf::Keyboard::Key::F3))
-	//	map.setIsGridShown(Game::isDebugModeOn());
+
+	sf::Vector2i mouseWindowPosition = sf::Mouse::getPosition(window);                                // Get mouse position in window coordinates	
+	sf::Vector2f mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.getView()); // Get mouse position in world coordinates relative to the view
+
+	lv::Debug::processInput(events, mouseWorldPosition, world);
+
+	//for (const auto& event : events)
+	//{
+	//	if (const auto* mouseReleased = event.getIf<sf::Event::MouseButtonReleased>())
+	//	{
+	//		if (mouseReleased->button == sf::Mouse::Button::Left)
+	//		{
+	//			if (Game::getInstance().isDebugModeOn())
+	//			{
+	//				// Enemy selection toggle
+	//				for (auto& enemy : world.getCurrentArea().enemies)
+	//					if (enemy->getBounds().contains(mouseWorldPosition))
+	//						enemy->toggleSelected();
+	//			}
+	//		}
+	//		else if (mouseReleased->button == sf::Mouse::Button::Right)
+	//		{
+	//			if (Game::getInstance().isDebugModeOn())
+	//			{
+	//				// Enemy selection clear
+	//				for (auto& enemy : world.getCurrentArea().enemies)
+	//					enemy->setSelected(false);
+	//			}
+	//		}
+	//	}
+	//}
 
 	player.processInput(window, events);
 }
@@ -49,14 +79,14 @@ void PlayState::update(float fixedTimeStep)
 
 	world.getCurrentArea().enemies.erase(
 		std::remove_if(world.getCurrentArea().enemies.begin(), world.getCurrentArea().enemies.end(),
-			[](const std::unique_ptr<Enemy>& enemy) {
+			[](const std::unique_ptr<lv::Enemy>& enemy) {
 				return !enemy->isAlive() || enemy->getPatrolPositions().empty();
 			}),
 		world.getCurrentArea().enemies.end()
 	);
 
 	for (auto& enemy : world.getCurrentArea().enemies)
-		enemy->update(fixedTimeStep, world.getCurrentArea().map, player.getLogicPositionCenter());
+		enemy->update(fixedTimeStep, world.getCurrentArea().map, player);
 
 
 	camera.update(fixedTimeStep, player);
@@ -69,15 +99,15 @@ void PlayState::render(sf::RenderWindow& window, float interpolationFactor)
 	world.getCurrentArea().map.drawTransparentOnly = false;
 	window.draw(world.getCurrentArea().map);
 
-	player.render(window, interpolationFactor);
-	for (auto& enemy : world.getCurrentArea().enemies)
-		enemy->render(window, font, interpolationFactor);
-
 	world.getCurrentArea().map.drawTransparentOnly = true;
 	window.draw(world.getCurrentArea().map);
 
-	world.getCurrentArea().map.setIsGridShown(Game::isDebugModeOn());
+	world.getCurrentArea().map.setIsGridShown(Game::getInstance().isDebugModeOn());
 	world.getCurrentArea().map.renderGrid(window);
+
+	player.render(window, interpolationFactor);
+	for (auto& enemy : world.getCurrentArea().enemies)
+		enemy->render(window, font, interpolationFactor);
 }
 
 void PlayState::applyView(sf::RenderWindow& window)

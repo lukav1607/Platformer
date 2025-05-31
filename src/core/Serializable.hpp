@@ -45,5 +45,5 @@ public:
 	// Deserialize the object from JSON
 	virtual void deserialize(const json& j) = 0;
 	// Get the type of the object as a string (for identification purposes)
-	//virtual const std::string& getType() const = 0;
+	virtual std::string getType() const = 0;
 };

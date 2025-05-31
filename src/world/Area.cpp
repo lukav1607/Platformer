@@ -11,6 +11,7 @@
 #include <fstream>
 #include <filesystem>
 #include "Area.hpp"
+#include "../state/game//enemies/EnemyFactory.hpp"
 
 Area::Area(Player& player) :
 	player(player),
@@ -50,9 +51,9 @@ bool Area::load(const std::string& filename)
     {
         for (const auto& enemyJson : j["enemies"])
         {
-            Enemy enemy;
-            enemy.deserialize(enemyJson);
-            enemies.emplace_back(std::make_unique<Enemy>(enemy));
+            /*Enemy enemy;
+            enemy.deserialize(enemyJson);*/
+            enemies.emplace_back(lv::createEnemyFromJson(enemyJson));
         }
     }
 

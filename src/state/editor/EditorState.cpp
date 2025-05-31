@@ -13,11 +13,13 @@
 #include "../StateManager.hpp"
 #include "../../core/Game.hpp"
 #include "../../core/Utility.hpp"
+#include "../../core/Debug.hpp"
+#include "../game/enemies/FlyingEnemy.hpp"
 
 EditorCamera EditorState::camera;
 EditorState::Mode EditorState::mode = Mode::TILES;
 
-EditorState::EditorState(StateManager& stateManager, PlayState& playState, World& world, Player& player, std::vector<std::unique_ptr<Enemy>>& enemies, sf::Font& font) :
+EditorState::EditorState(StateManager& stateManager, PlayState& playState, World& world, Player& player, std::vector<std::unique_ptr<lv::Enemy>>& enemies, sf::Font& font) :
 	State(stateManager),
 	playState(playState),
 	world(world),
@@ -30,11 +32,6 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, World
 		PlayerMode::MOVE_TO,
 		PlayerMode::SET_SPAWN
 	},
-	enemyPalette{
-		Enemy::Type::Crawling,
-		Enemy::Type::Walking,
-		Enemy::Type::Flying
-	},
 	palette{
 		Tile::Type::Background,
 		Tile::Type::Solid,
@@ -44,7 +41,6 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, World
 	selectedTileIndex(-1),
 	selectedPlayerModeIndex(-1),
 	selectedEnemyIndex(-1),
-	currentEnemy(),
 	isDrawingSelection(false),
 	selectionAction(SelectionAction::NONE),
 	isErasing(false),
@@ -57,6 +53,8 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, World
 	mapSavedText(font, "Map saved!", 48U),
 	mapLoadedText(font, "Map loaded!", 48U)
 {
+	enemyPalette.emplace_back(std::make_unique<lv::FlyingEnemy>());
+
 	playerSpawnShape.setSize(player.getSize());
 	playerSpawnShape.setFillColor(sf::Color::Transparent);
 	playerSpawnShape.setOutlineThickness(4.f);
@@ -82,22 +80,24 @@ EditorState::EditorState(StateManager& stateManager, PlayState& playState, World
 	mapLoadedText.setOutlineThickness(2.f);
 
 	for (auto& enemy : enemies)
-		enemy->updateDebugVisuals(world.getCurrentArea().map, player.getLogicPositionCenter());
+		enemy->updateDebugVisuals(world.getCurrentArea().map, player.getBounds());
 }
 
 void EditorState::processInput(const sf::RenderWindow& window, const std::vector<sf::Event>& events)
 {
+	sf::Vector2i mouseWindowPosition = sf::Mouse::getPosition(window);                   // Get mouse position in window coordinates	
+	mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.getView()); // Get mouse position in world coordinates relative to the view
+	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);            // Convert mouse position to tile coordinates
+
+	lv::Debug::processInput(events, mouseWorldPosition, world);
+
 	// Process relevant window events
 	for (const auto& event : events)
 	{
 		// Apply mouse wheel scroll delta (for camera zoom)
 		if (const auto* mouseWheelScrolled = event.getIf<sf::Event::MouseWheelScrolled>())
 			mouseWheelDelta += mouseWheelScrolled->delta;
-	}	
-	
-	sf::Vector2i mouseWindowPosition = sf::Mouse::getPosition(window);                   // Get mouse position in window coordinates	
-	mouseWorldPosition = window.mapPixelToCoords(mouseWindowPosition, camera.getView()); // Get mouse position in world coordinates relative to the view
-	sf::Vector2i tileCoords = Utility::worldToTileCoords(mouseWorldPosition);            // Convert mouse position to tile coordinates
+	}
 
 	handleSaveLoadInput();
 	handleModeSwitchInput();
@@ -350,10 +350,12 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 	bool isLeftClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Left);
 	bool isRightClickReleased = Utility::isButtonReleased(sf::Mouse::Button::Right);
 
+	//auto& selected = enemyPalette.at(selectedEnemyIndex);
+
 	if (isRightClickReleased)
 	{
+		enemyPalette.at(selectedEnemyIndex)->clearPatrolPositions();
 		selectedEnemyIndex = -1; // Deselect enemy on right click
-		currentEnemy.clearPatrolPositions();
 	}
 	else if (isLeftClickReleased)
 	{
@@ -363,8 +365,10 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 			sf::FloatRect bounds({ toolOffset.x + 10.f + i * 60.f, toolOffset.y + 10.f }, { 50.f, 50.f });
 			if (bounds.contains(sf::Vector2f(mouseWindowPosition)))
 			{
-				currentEnemy.setType(static_cast<Enemy::Type>(i));
-				currentEnemy.clearPatrolPositions();
+				//currentEnemy.setType(static_cast<Enemy::Type>(i));
+				//currentEnemy.clearPatrolPositions();
+				//for (auto& enemy : enemies)
+				//	enemy->clearPatrolPositions();
 				selectedEnemyIndex = i;
 				return;
 			}
@@ -379,32 +383,38 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 			if (world.getCurrentArea().map.getTile(tileCoords).type == Tile::Type::Solid/* || map.getTile(tileCoords + sf::Vector2i(0.f, -1.f)).type == Tile::Type::Solid*/)
 				return;
 
-			if (currentEnemy.getPatrolPositions().size() > 1)
-				for (int i = 1; i < currentEnemy.getPatrolPositions().size(); ++i)
-					if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
+			if (enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().size() > 1)
+				for (int i = 1; i < enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().size(); ++i)
+					if (enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().at(i) == tileCoords)
 						return;
 
-			if (!currentEnemy.getPatrolPositions().empty() && tileCoords == currentEnemy.getPatrolPositions().at(0))
+			if (!enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().empty() && tileCoords == enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().at(0))
 			{
-				enemies.emplace_back(std::make_unique<Enemy>(currentEnemy.getPatrolPositions(), static_cast<Enemy::Type>(selectedEnemyIndex)));
-				currentEnemy.clearPatrolPositions();
+				//enemies.emplace_back(std::make_unique<Enemy>(currentEnemy.getPatrolPositions(), static_cast<Enemy::Type>(selectedEnemyIndex)));
+				//currentEnemy.clearPatrolPositions();
+				enemies.push_back(enemyPalette.at(selectedEnemyIndex)->clone());
+				enemies.back()->markAsComplete();
+				enemyPalette.at(selectedEnemyIndex)->clearPatrolPositions();
 				return;
 			}
 
-			if (currentEnemy.isValidPatrolPosition(world.getCurrentArea().map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
-				currentEnemy.addPatrolPosition(tileCoords);
+			if (enemyPalette.at(selectedEnemyIndex)->isValidPatrolPosition(world.getCurrentArea().map, tileCoords))
+				enemyPalette.at(selectedEnemyIndex)->addPatrolPosition(tileCoords);
 		}
 		else if (isErasing)
 		{
 			/*if (currentEnemy.getPatrolPositions().empty())
 				return;*/
 
-			for (int i = 0; i < currentEnemy.getPatrolPositions().size(); ++i)
+			if (selectedEnemyIndex != -1 && !enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().empty())
 			{
-				if (currentEnemy.getPatrolPositions().at(i) == tileCoords)
+				for (int i = 0; i < enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().size(); ++i)
 				{
-					currentEnemy.removePatrolPosition(tileCoords);
-					return;
+					if (enemyPalette.at(selectedEnemyIndex)->getPatrolPositions().at(i) == tileCoords)
+					{
+						enemyPalette.at(selectedEnemyIndex)->removePatrolPosition(tileCoords);
+						return;
+					}
 				}
 			}
 
@@ -429,15 +439,18 @@ void EditorState::handleEnemyPlacement(sf::Vector2i mouseWindowPosition, sf::Vec
 void EditorState::renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tileCoords)
 {
 
-	for (auto& enemy : enemies)
-		enemy->renderPatrolPositions(window, font);
+	//for (auto& enemy : enemies)
+	//	enemy->renderPatrolPositions(window, font);
 
-	currentEnemy.renderPatrolPositions(window, font);
+	if (enemyPalette.empty() || selectedEnemyIndex == -1)
+		return;
+
+	enemyPalette.at(selectedEnemyIndex)->renderPatrolPositions(window, font);
 
 	if (mode != Mode::ENEMIES)
 		return;
 
-	if (selectedEnemyIndex == -1 || isErasing)
+	if (isErasing)
 		return;
 
 	if (!world.getCurrentArea().map.isWithinBounds(tileCoords))
@@ -446,7 +459,7 @@ void EditorState::renderEnemyPreview(sf::RenderWindow& window, sf::Vector2i tile
 	sf::RectangleShape enemyPatrolPositionPreview(sf::Vector2f(TileMap::TILE_SIZE, TileMap::TILE_SIZE));
 	enemyPatrolPositionPreview.setPosition(Utility::tileToWorldCoords(tileCoords));
 
-	if (currentEnemy.isValidPatrolPosition(world.getCurrentArea().map, static_cast<Enemy::Type>(selectedEnemyIndex), tileCoords))
+	if (enemyPalette.at(selectedEnemyIndex)->isValidPatrolPosition(world.getCurrentArea().map, tileCoords))
 	{
 		enemyPatrolPositionPreview.setFillColor(sf::Color(100, 220, 100, 100));
 		enemyPatrolPositionPreview.setOutlineColor(sf::Color(100, 220, 100, 200));
@@ -477,7 +490,7 @@ void EditorState::renderEnemyPalette(sf::RenderWindow& window)
 	{
 		sf::RectangleShape shape(sf::Vector2f(50.f, 50.f));
 		shape.setPosition({ toolOffset.x + i * 60.f, toolOffset.y });
-		shape.setFillColor(Enemy::getColor(static_cast<Enemy::Type>(i)));
+		///shape.setFillColor(Enemy::getColor(static_cast<Enemy::Type>(i)));
 
 		if (i == selectedEnemyIndex)
 		{
